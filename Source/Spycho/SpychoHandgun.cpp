@@ -19,12 +19,16 @@ void USpychoHandgun::Fire(FRotator Aim)
     Aim.Pitch = FMath::Clamp(FRotator::NormalizeAxis(Aim.Pitch), -85.f, 85.f);
     Aim.Roll = 0.f;
     C->Penetration->Fire(C->Camera->GetComponentLocation(), Aim.Vector());
-    GS->Noise(ESpychoNoise::Gunshot, C->GetActorLocation()+FVector(0,0,60), 2.8f);
     Fired();
 }
 void USpychoHandgun::Fired_Implementation()
 {
-    if (auto* C = Cast<ASpychoCharacter>(GetOwner())) C->ShotFeedback();
+    if (auto* C = Cast<ASpychoCharacter>(GetOwner()))
+    {
+        C->ShotFeedback();
+        // The defining gunshot information travels with the reliable fire event.
+        if (auto* GS=GetWorld()->GetGameState<ASpychoGameState>()) GS->Noise_Implementation(ESpychoNoise::Gunshot,C->GetActorLocation()+FVector(0,0,60),2.8f);
+    }
 }
 void USpychoHandgun::Reload()
 {

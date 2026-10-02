@@ -3,6 +3,7 @@ import argparse,json,os,subprocess,sys
 from pathlib import Path
 
 project=Path(__file__).resolve().parents[1]
+os.environ['COMSPEC']=str(Path(os.environ.get('SystemRoot','C:/Windows'))/'System32/cmd.exe')
 parser=argparse.ArgumentParser()
 parser.add_argument('action',choices=['build','test','smoke','assets','play','host','join'])
 parser.add_argument('address',nargs='?',default='127.0.0.1:7777')

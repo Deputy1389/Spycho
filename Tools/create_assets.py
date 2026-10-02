@@ -43,9 +43,10 @@ def box(name,pos,size,mat='Drywall',surface=None,rot=0):
     c=a.static_mesh_component;c.set_static_mesh(cube);c.set_material(0,mats[mat]);c.set_phys_material_override(surfaces[surface or (mat if mat in surfaces else 'Furniture')]);c.set_collision_profile_name('BlockAll')
     a.set_actor_scale3d(u.Vector(*(v/100 for v in size)))
     return a
-def door(name,pos,yaw=0):
+def door(name,pos,yaw=0,angle=95):
     a=actors.spawn_actor_from_class(u.SpychoDoor,u.Vector(*pos),u.Rotator(0,yaw,0));a.set_actor_label(name)
     panel=a.get_editor_property('panel');panel.set_material(0,mats['Wood']);panel.set_phys_material_override(surfaces['Wood'])
+    a.set_editor_property('open_angle',angle)
     return a
 def xwall(name,x,lo,hi,opening,mat='Drywall',thickness=12):
     if opening is None:box(name,(x,(lo+hi)/2,135),(thickness,hi-lo,270),mat);return
@@ -53,7 +54,7 @@ def xwall(name,x,lo,hi,opening,mat='Drywall',thickness=12):
     box(name+' south',(x,(lo+d-50)/2,135),(thickness,d-50-lo,270),mat)
     box(name+' north',(x,(d+50+hi)/2,135),(thickness,hi-d-50,270),mat)
     box(name+' lintel',(x,d,239),(thickness,100,62),mat)
-    door(name+' door',(x,d-45,0))
+    door(name+' door',(x,d-45,0),angle=-95 if x>0 else 95)
 def ywall(name,y,lo,hi,opening,mat='Drywall',thickness=12):
     if opening is None:box(name,((lo+hi)/2,y,135),(hi-lo,thickness,270),mat);return
     d=opening
@@ -62,15 +63,15 @@ def ywall(name,y,lo,hi,opening,mat='Drywall',thickness=12):
     box(name+' lintel',(d,y,239),(100,thickness,62),mat)
     door(name+' door',(d+45,y,0),90)
 
-# A 12 x 14 m house. 2.4 m corridor, ordinary 1 m doorways.
+# A 12 x 14 m house. 1.6 m corridor, ordinary 1 m doorways.
 box('Outside ground',(0,0,-32),(2600,3000,30),'Masonry')
-box('Hall wood',(0,0,-10),(240,1400,20),'Wood')
+box('Hall wood',(0,0,-10),(160,1400,20),'Wood')
 for side in [-1,1]:
     for i,(lo,hi) in enumerate([(-700,-250),(-250,200),(200,700)]):
         finish=['Wood','Tile','Carpet'][(i+(side==1))%3]
-        box('Room floor', (side*360,(lo+hi)/2,-10),(480,hi-lo,20),finish)
-        xwall('Hall partition',side*120,lo,hi,[-475,-25,450][i])
-    for y in [-250,200]: ywall('Connecting partition',y,(-600 if side==-1 else 120),(-120 if side==-1 else 600),side*360)
+        box('Room floor', (side*340,(lo+hi)/2,-10),(520,hi-lo,20),finish)
+        xwall('Hall partition',side*80,lo,hi,[-475,-25,450][i])
+    for y in [-250,200]: ywall('Connecting partition',y,(-600 if side==-1 else 80),(-80 if side==-1 else 600),side*360)
 xwall('West exterior',-612,-712,712,None,'Masonry',24)
 xwall('East exterior',612,-712,712,None,'Masonry',24)
 ywall('North exterior',712,-624,624,None,'Masonry',24)

@@ -40,7 +40,7 @@ void ASpychoDoor::Reset() { bOpen=false; Swing->SetRelativeRotation(FRotator::Ze
 void ASpychoDoor::Tick(float Dt)
 {
     Super::Tick(Dt);
-    float Yaw=FMath::FInterpConstantTo(Swing->GetRelativeRotation().Yaw,bOpen?95.f:0.f,Dt,bCareful?55.f:220.f);
+    float Yaw=FMath::FInterpConstantTo(Swing->GetRelativeRotation().Yaw,bOpen?OpenAngle:0.f,Dt,bCareful?55.f:220.f);
     Swing->SetRelativeRotation(FRotator(0,Yaw,0));
 }
 void ASpychoDoor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const

@@ -16,6 +16,7 @@ The single-player game creates a damageable patrol in the northeast study. Enter
 | Hold Ctrl | Crouch |
 | Hold Shift | Careful walk; quieter door use |
 | Left mouse | Fire one shot |
+| Hold right mouse | Align primitive iron sights |
 | R | Audible 2.1-second reload |
 | E | Open/close the door you face within 1.9 m |
 | F3 | Local developer overlay, bullet traces and noise sources |
@@ -35,5 +36,9 @@ The server owns firing cadence, ammo, reload, damage and round reset. Pawn movem
 Run `Tools/run.py build` with local Python 3; it discovers the installed engine from Epic's installation manifest or `SPYCHO_UE_ROOT`. `Tools/run.py test` runs the Unreal rule tests. `Tools/run.py smoke` launches the real saved map headlessly and checks lethal drywall penetration, solid masonry and round cleanup. `Tools/run.py play` opens a standalone practice instance.
 
 Physical materials in `Content/Surfaces` expose resistance per centimeter, entry cost, maximum thickness and floor noise gain. Ballistic defaults are on the character's penetration component. Original WAV tooling is `Tools/generate_audio.py`; optional map regeneration is `Tools/run.py assets` (replaces the graybox map). Do not regenerate casually after editing the map by hand.
+
+`Tools/network_smoke.py` runs two separate editor game processes on local port 17777, verifies a remote shot and replicated reset, then exits. Pass a packaged `Spycho/Binaries/Win64/Spycho.exe` path to test the cooked build instead. `Tools/package.py OUTPUT_DIRECTORY` builds/cooks a Development Windows package. The helpers set `COMSPEC` locally to `cmd.exe` because this machine's inherited shell setting points to a missing PowerShell executable.
+
+For the packaged prototype, launch the top-level `Windows/Spycho.exe`. No editor is required. Host and Join console commands and all controls above work there too.
 
 See `docs/CURRENT_STATUS.md` for actual verification and limitations.

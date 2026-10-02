@@ -21,6 +21,7 @@ ASpychoCharacter::ASpychoCharacter()
     bUseControllerRotationYaw = true;
     Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Eyes")); Camera->SetupAttachment(GetCapsuleComponent());
     Camera->SetRelativeLocation(FVector(0,0,64)); Camera->bUsePawnControlRotation = true; Camera->FieldOfView=80.f;
+    Camera->PostProcessSettings.bOverride_AutoExposureBias=true; Camera->PostProcessSettings.AutoExposureBias=-3.5f;
     auto* Move = GetCharacterMovement(); Move->MaxWalkSpeed=210.f; Move->MaxWalkSpeedCrouched=85.f;
     Move->GetNavAgentPropertiesRef().bCanCrouch=true; Move->SetCrouchedHalfHeight(52.f); Move->BrakingDecelerationWalking=800.f;
     Move->MaxAcceleration=650.f; Move->bRunPhysicsWithNoController=true;
@@ -37,6 +38,14 @@ ASpychoCharacter::ASpychoCharacter()
     auto* Grip=CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Grip")); Grip->SetupAttachment(Gun); Grip->SetStaticMesh(Cube.Object);
     Grip->SetRelativeLocation(FVector(-24,0,-85)); Grip->SetRelativeScale3D(FVector(0.3f,0.9f,2.3f)); Grip->SetMaterial(0,Dark.Object);
     Grip->SetCollisionEnabled(ECollisionEnabled::NoCollision); Grip->SetOnlyOwnerSee(true); Grip->SetCastShadow(false);
+    for (int32 i=0;i<3;++i)
+    {
+        auto* Sight=CreateDefaultSubobject<UStaticMeshComponent>(*FString::Printf(TEXT("IronSight%d"),i)); Sight->SetupAttachment(Camera);
+        Sight->SetStaticMesh(Cube.Object); Sight->SetMaterial(0,Dark.Object); Sight->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        Sight->SetOnlyOwnerSee(true); Sight->SetCastShadow(false); Sight->SetVisibility(false);
+        Sight->SetRelativeLocation(i==0?FVector(45,0,-0.5f):FVector(27,i==1?-0.8f:0.8f,-0.7f));
+        Sight->SetRelativeScale3D(i==0?FVector(.02f,.02f,.01f):FVector(.01f,.005f,.014f)); Sights.Add(Sight);
+    }
 }
 void ASpychoCharacter::BeginPlay() { Super::BeginPlay(); LastStepPosition=GetActorLocation(); }
 void ASpychoCharacter::SetupPlayerInputComponent(UInputComponent* Input)
@@ -45,6 +54,7 @@ void ASpychoCharacter::SetupPlayerInputComponent(UInputComponent* Input)
     Input->BindAxis("Forward",this,&ASpychoCharacter::Forward); Input->BindAxis("Right",this,&ASpychoCharacter::Right);
     Input->BindAxis("Turn",this,&ASpychoCharacter::Turn); Input->BindAxis("Look",this,&ASpychoCharacter::Look);
     Input->BindAction("Fire",IE_Pressed,this,&ASpychoCharacter::Fire); Input->BindAction("Reload",IE_Pressed,this,&ASpychoCharacter::Reload);
+    Input->BindAction("Aim",IE_Pressed,this,&ASpychoCharacter::AimDown); Input->BindAction("Aim",IE_Released,this,&ASpychoCharacter::AimUp);
     Input->BindAction("Interact",IE_Pressed,this,&ASpychoCharacter::Interact);
     Input->BindAction("Crouch",IE_Pressed,this,&ASpychoCharacter::CrouchDown); Input->BindAction("Crouch",IE_Released,this,&ASpychoCharacter::CrouchUp);
     Input->BindAction("Careful",IE_Pressed,this,&ASpychoCharacter::CarefulDown); Input->BindAction("Careful",IE_Released,this,&ASpychoCharacter::CarefulUp);
@@ -54,6 +64,8 @@ void ASpychoCharacter::Right(float V) { if (Health->Health>0.f) AddMovementInput
 void ASpychoCharacter::Turn(float V) { AddControllerYawInput(V*0.65f); }
 void ASpychoCharacter::Look(float V) { AddControllerPitchInput(V*0.65f); }
 void ASpychoCharacter::Fire() { if (Health->Health>0.f) ServerFire(Camera->GetComponentRotation()); }
+void ASpychoCharacter::AimDown() { if (Health->Health>0.f) { bAiming=true; for (auto& S:Sights) S->SetVisibility(true); } }
+void ASpychoCharacter::AimUp() { bAiming=false; for (auto& S:Sights) S->SetVisibility(false); }
 void ASpychoCharacter::Reload() { ServerReload(); }
 void ASpychoCharacter::Interact() { ServerInteract(); }
 void ASpychoCharacter::CrouchDown() { if (Health->Health>0.f) Crouch(); }
@@ -76,7 +88,8 @@ void ASpychoCharacter::ServerInteract_Implementation()
 void ASpychoCharacter::Tick(float Dt)
 {
     Super::Tick(Dt);
-    GunKick=FMath::FInterpTo(GunKick,0.f,Dt,12.f); Gun->SetRelativeLocation(FVector(35-GunKick,13,-17));
+    GunKick=FMath::FInterpTo(GunKick,0.f,Dt,12.f); Gun->SetRelativeLocation(FVector(35-GunKick,bAiming?0.f:13.f,bAiming?-4.f:-17.f));
+    Camera->FieldOfView=FMath::FInterpTo(Camera->FieldOfView,bAiming?65.f:80.f,Dt,12.f);
     if (!HasAuthority() || Health->Health<=0.f) return;
     auto* GS=GetWorld()->GetGameState<ASpychoGameState>();
     if (bTestOpponent && Patrol.Num()>0 && GS && GS->bRoundActive && GetWorld()->GetTimeSeconds()>PauseUntil)
@@ -104,12 +117,12 @@ void ASpychoCharacter::UpdateFootsteps(float Dt)
     float Gain=(bIsCrouched?0.05f:(bCareful?0.09f:0.23f))*(Surface?Surface->FootstepGain:1.f);
     if (auto* GS=GetWorld()->GetGameState<ASpychoGameState>()) GS->Noise(Kind,Floor.bBlockingHit?Floor.ImpactPoint:GetActorLocation(),Gain);
 }
-void ASpychoCharacter::ShotFeedback() { GunKick=7.f; if (IsLocallyControlled()) { AddControllerPitchInput(-2.5f); AddControllerYawInput(FMath::FRandRange(-0.5f,0.5f)); } }
+void ASpychoCharacter::ShotFeedback() { GunKick=7.f; if (IsLocallyControlled()) { AddControllerPitchInput(2.5f); AddControllerYawInput(FMath::FRandRange(-0.5f,0.5f)); } }
 void ASpychoCharacter::Die()
 {
     if (bDeathHandled) return; bDeathHandled=true;
     GetCharacterMovement()->DisableMovement(); GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    Body->SetRelativeRotation(FRotator(80,0,0)); Body->SetRelativeLocation(FVector(0,0,-65)); Gun->SetVisibility(false,true);
+    Body->SetRelativeRotation(FRotator(80,0,0)); Body->SetRelativeLocation(FVector(0,0,-65)); Gun->SetVisibility(false,true); AimUp();
     if (HasAuthority()) { Handgun->CancelReload(); if (auto* GM=GetWorld()->GetAuthGameMode<ASpychoGameMode>()) GM->OnDeath(this); }
 }
 void ASpychoCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const

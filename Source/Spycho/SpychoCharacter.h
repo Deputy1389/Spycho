@@ -20,6 +20,7 @@ public:
     UPROPERTY(VisibleAnywhere) TObjectPtr<USpychoPenetration> Penetration;
     UPROPERTY(VisibleAnywhere) TObjectPtr<UStaticMeshComponent> Body;
     UPROPERTY(VisibleAnywhere) TObjectPtr<UStaticMeshComponent> Gun;
+    UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> Sights;
     UPROPERTY(Replicated) bool bTestOpponent = false;
     UPROPERTY(ReplicatedUsing=OnRep_Careful) bool bCareful = false;
     TArray<FVector> Patrol;
@@ -44,4 +45,6 @@ private:
     float PauseUntil = 0.f;
     bool bDeathHandled = false;
     float GunKick = 0.f;
+    bool bAiming = false;
+    void AimDown(); void AimUp();
 };

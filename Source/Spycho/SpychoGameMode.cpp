@@ -11,6 +11,10 @@
 #include "EngineUtils.h"
 #include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "UnrealClient.h"
+#include "Misc/Paths.h"
+#include "HAL/FileManager.h"
+#include "InputKeyEventArgs.h"
 
 ASpychoGameMode::ASpychoGameMode()
 {
@@ -22,6 +26,20 @@ void ASpychoGameMode::BeginPlay()
     Super::BeginPlay();
     GetWorldTimerManager().SetTimer(AmbientTimer,this,&ASpychoGameMode::Creak,23.f,false);
     if (FParse::Param(FCommandLine::Get(),TEXT("SpychoSmoke"))) { FTimerHandle T; GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::BeginSmokeTest,4.f,false); }
+    if (FParse::Param(FCommandLine::Get(),TEXT("SpychoCapture"))) { FTimerHandle T; GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::CapturePrototype,5.f,false); }
+}
+void ASpychoGameMode::CapturePrototype()
+{
+    auto* PC=GetWorld()->GetFirstPlayerController(); if (!PC || !PC->GetPawn()) return;
+    PC->GetPawn()->DisableInput(PC); PC->SetIgnoreMoveInput(true); PC->SetIgnoreLookInput(true);
+    PC->GetPawn()->SetActorLocation(FVector(0,-590,90)); PC->SetControlRotation(FRotator(0,90,0));
+    FString Directory=FPaths::ProjectSavedDir()/TEXT("Screenshots"); IFileManager::Get().MakeDirectory(*Directory,true);
+    FTimerHandle T;
+    GetWorldTimerManager().SetTimer(T,FTimerDelegate::CreateLambda([this,Directory]()
+    {
+        FScreenshotRequest::RequestScreenshot(Directory/TEXT("Spycho.png"),false,false);
+        FTimerHandle Exit; GetWorldTimerManager().SetTimer(Exit,FTimerDelegate::CreateLambda([](){FPlatformMisc::RequestExitWithStatus(false,0);}),2.f,false);
+    }),1.f,false);
 }
 void ASpychoGameMode::PreLogin(const FString& O,const FString& A,const FUniqueNetIdRepl& I,FString& E)
 {
@@ -97,8 +115,32 @@ void ASpychoGameMode::Creak()
 }
 void ASpychoGameMode::BeginSmokeTest()
 {
+    auto* PC=GetWorld()->GetFirstPlayerController(); if (!PC || !PC->GetPawn()) { FPlatformMisc::RequestExitWithStatus(false,1); return; }
+    PC->GetPawn()->SetActorLocation(FVector(0,-590,90)); PC->SetControlRotation(FRotator(0,90,0));
+    SmokeMovementStart=PC->GetPawn()->GetActorLocation();
+    PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::W,IE_Pressed,1.f));
+    FTimerHandle T; GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::SmokeCheckMovement,.6f,false);
+}
+void ASpychoGameMode::SmokeCheckMovement()
+{
+    auto* PC=GetWorld()->GetFirstPlayerController(); auto* C=PC?Cast<ASpychoCharacter>(PC->GetPawn()):nullptr;
+    if (!C) { FPlatformMisc::RequestExitWithStatus(false,1); return; }
+    PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::W,IE_Released,0.f));
+    float Travel=C->GetActorLocation().Y-SmokeMovementStart.Y;
+    bSmokeMovementPassed=Travel>40.f&&Travel<180.f;
+    UE_LOG(LogTemp,Display,TEXT("SPYCHO_SMOKE %s actual W input grounded movement %.1f cm"),bSmokeMovementPassed?TEXT("PASS"):TEXT("FAIL"),Travel);
+    PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::LeftShift,IE_Pressed,1.f));
+    PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::LeftControl,IE_Pressed,1.f));
+    FTimerHandle T; GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::SmokeBeginAmmo,.4f,false);
+}
+void ASpychoGameMode::SmokeBeginAmmo()
+{
     auto* PC=GetWorld()->GetFirstPlayerController(); auto* Shooter=PC?Cast<ASpychoCharacter>(PC->GetPawn()):nullptr;
     if (!Shooter) { FPlatformMisc::RequestExitWithStatus(false,1); return; }
+    bool Stance=Shooter->bCareful&&Shooter->bIsCrouched;
+    UE_LOG(LogTemp,Display,TEXT("SPYCHO_SMOKE %s actual Shift/Ctrl stance input"),Stance?TEXT("PASS"):TEXT("FAIL")); bSmokeMovementPassed &= Stance;
+    PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::LeftShift,IE_Released,0.f));
+    PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::LeftControl,IE_Released,0.f));
     Shooter->Handgun->Fire(FRotator(85,0,0));
     Shooter->Handgun->Fire(FRotator(85,0,0));
     bSmokeAmmoPassed=Shooter->Handgun->Magazine==5;
@@ -133,5 +175,5 @@ void ASpychoGameMode::RunSmokeTest()
     UE_LOG(LogTemp,Display,TEXT("SPYCHO_SMOKE %s all 8 sound references exist"),AudioReady?TEXT("PASS"):TEXT("FAIL"));
     bool DoorReady=false; for (TActorIterator<ASpychoDoor> It(GetWorld()); It; ++It) { It->Toggle(true); DoorReady=It->bOpen && It->bCareful; It->Reset(); break; }
     UE_LOG(LogTemp,Display,TEXT("SPYCHO_SMOKE %s door careful toggle/reset"),DoorReady?TEXT("PASS"):TEXT("FAIL"));
-    FPlatformMisc::RequestExitWithStatus(false,(Pass&&Blocked&&Cleared&&bSmokeAmmoPassed&&AudioReady&&DoorReady)?0:1);
+    FPlatformMisc::RequestExitWithStatus(false,(Pass&&Blocked&&Cleared&&bSmokeAmmoPassed&&bSmokeMovementPassed&&AudioReady&&DoorReady)?0:1);
 }

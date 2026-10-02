@@ -21,9 +21,13 @@ private:
     FTimerHandle AmbientTimer;
     void Creak();
     void BeginSmokeTest();
+    void SmokeCheckMovement(); void SmokeBeginAmmo();
     void RunSmokeTest();
     bool bSmokeAmmoPassed = false;
+    bool bSmokeMovementPassed = false;
+    FVector SmokeMovementStart;
     void BeginNetworkSmoke();
     bool bNetworkSmokeStarted = false;
     bool bNetworkSmokePassed = true;
+    void CapturePrototype();
 };

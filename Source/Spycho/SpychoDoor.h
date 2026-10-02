@@ -15,6 +15,7 @@ public:
     UPROPERTY() TObjectPtr<UPhysicalMaterial> DoorSurface;
     UPROPERTY(Replicated) bool bOpen = false;
     UPROPERTY(Replicated) bool bCareful = false;
+    UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="Door") float OpenAngle = 95.f;
     void Toggle(bool Carefully);
     void Reset();
     virtual void Tick(float Dt) override;
