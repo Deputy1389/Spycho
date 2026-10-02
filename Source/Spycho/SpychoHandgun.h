@@ -13,14 +13,17 @@ public:
     UPROPERTY(Replicated, BlueprintReadOnly) int32 Reserve = 12;
     UPROPERTY(Replicated, BlueprintReadOnly) bool bReloading = false;
     UPROPERTY(EditAnywhere) float ReloadSeconds = 2.1f;
-    UPROPERTY(EditAnywhere) float ShotInterval = 0.55f;
-    void Fire(FRotator Aim);
+    UPROPERTY(EditAnywhere) float ShotInterval = 0.28f;
+    void Fire(FRotator Aim, int32 PredictionKey = 0);
     void Reload();
     void CancelReload();
-    UFUNCTION(NetMulticast, Reliable) void Fired();
+    UFUNCTION(NetMulticast, Reliable) void Fired(int32 PredictionKey);
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const override;
 private:
     double NextShot = 0;
     FTimerHandle ReloadTimer;
+    FTimerHandle BufferedShotTimer;
+    bool bBufferedShot = false;
+    void FlushBufferedShot(FRotator Aim, int32 PredictionKey);
     void FinishReload();
 };

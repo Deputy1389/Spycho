@@ -16,7 +16,7 @@ The single-player game creates a damageable patrol in the northeast study. Enter
 | Hold Ctrl | Crouch |
 | Hold Shift | Careful walk; quieter door use |
 | Left mouse | Fire one shot |
-| Hold right mouse | Align primitive iron sights |
+| Hold right mouse | Smoothly align iron sights |
 | R | Audible 2.1-second reload |
 | E | Open/close the door you face within 1.9 m |
 | F3 | Local developer overlay, bullet traces and noise sources |
@@ -25,11 +25,13 @@ The single-player game creates a damageable patrol in the northeast study. Enter
 
 Six rounds loaded, twelve in reserve, no pickups or crosshair. Direct hits and one ordinary drywall penetration are lethal. Wood spends more energy; masonry stops bullets. Wall marks persist until reset. Movement is 2.1 m/s, careful walk 1.05 m/s, crouch 0.85 m/s.
 
+Mouse-up looks up. Valid trigger clicks play recoil and sound immediately, including on a remote client. The pistol can fire every 0.28 seconds; a click within 80 ms before it is ready is buffered once. Sights move with the weapon, recoil mostly returns, and the slide, muzzle flash and magazine provide shot/reload feedback.
+
 ## Two-player LAN / direct IP
 
 Run two standalone game instances, or Play with **2 players / Play As Listen Server** and **Use Single Process disabled**. In a standalone instance, enter `Host` in the console to open the house as a listen server. On the other machine/instance enter `Join 192.168.1.10:7777` (replace the address; `Join 127.0.0.1:7777` locally). UDP 7777 must be reachable. The second human replaces the practice patrol and starts a fresh round. There is no matchmaking or online service.
 
-The server owns firing cadence, ammo, reload, damage and round reset. Pawn movement uses Unreal character replication. Doors, positional sounds, impacts and death replicate. Five seconds after a kill, both players respawn with fresh ammunition and all marks are cleared. Third connections are rejected.
+The server owns firing cadence, ammo, reload, damage and round reset. The owning client predicts only shot presentation; the accepted firing event reaches other players without repeating the owner's recoil or sound. Pawn movement uses Unreal character replication. Doors, positional sounds, impacts and death replicate. Five seconds after a kill, both players respawn with fresh ammunition and all marks are cleared. Third connections are rejected.
 
 ## Build and verify
 

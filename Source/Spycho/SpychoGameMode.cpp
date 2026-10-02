@@ -31,13 +31,20 @@ void ASpychoGameMode::BeginPlay()
 void ASpychoGameMode::CapturePrototype()
 {
     auto* PC=GetWorld()->GetFirstPlayerController(); if (!PC || !PC->GetPawn()) return;
-    PC->GetPawn()->DisableInput(PC); PC->SetIgnoreMoveInput(true); PC->SetIgnoreLookInput(true);
+    bool AimCapture=FParse::Param(FCommandLine::Get(),TEXT("SpychoCaptureAim"));
+    PC->SetIgnoreMoveInput(true); PC->SetIgnoreLookInput(true);
+    if (AimCapture)
+    {
+        PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::RightMouseButton,IE_Pressed,1.f));
+        FTimerHandle Freeze; GetWorldTimerManager().SetTimer(Freeze,FTimerDelegate::CreateLambda([PC](){PC->GetPawn()->DisableInput(PC);}),.1f,false);
+    }
+    else PC->GetPawn()->DisableInput(PC);
     PC->GetPawn()->SetActorLocation(FVector(0,-590,90)); PC->SetControlRotation(FRotator(0,90,0));
     FString Directory=FPaths::ProjectSavedDir()/TEXT("Screenshots"); IFileManager::Get().MakeDirectory(*Directory,true);
     FTimerHandle T;
-    GetWorldTimerManager().SetTimer(T,FTimerDelegate::CreateLambda([this,Directory]()
+    GetWorldTimerManager().SetTimer(T,FTimerDelegate::CreateLambda([this,Directory,AimCapture]()
     {
-        FScreenshotRequest::RequestScreenshot(Directory/TEXT("Spycho.png"),false,false);
+        FScreenshotRequest::RequestScreenshot(Directory/(AimCapture?TEXT("SpychoAim.png"):TEXT("Spycho.png")),false,false);
         FTimerHandle Exit; GetWorldTimerManager().SetTimer(Exit,FTimerDelegate::CreateLambda([](){FPlatformMisc::RequestExitWithStatus(false,0);}),2.f,false);
     }),1.f,false);
 }
@@ -131,21 +138,59 @@ void ASpychoGameMode::SmokeCheckMovement()
     UE_LOG(LogTemp,Display,TEXT("SPYCHO_SMOKE %s actual W input grounded movement %.1f cm"),bSmokeMovementPassed?TEXT("PASS"):TEXT("FAIL"),Travel);
     PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::LeftShift,IE_Pressed,1.f));
     PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::LeftControl,IE_Pressed,1.f));
+    PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::MouseY,IE_Axis,8.f));
+    PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::MouseX,IE_Axis,8.f));
+    PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::RightMouseButton,IE_Pressed,1.f));
     FTimerHandle T; GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::SmokeBeginAmmo,.4f,false);
 }
 void ASpychoGameMode::SmokeBeginAmmo()
 {
     auto* PC=GetWorld()->GetFirstPlayerController(); auto* Shooter=PC?Cast<ASpychoCharacter>(PC->GetPawn()):nullptr;
     if (!Shooter) { FPlatformMisc::RequestExitWithStatus(false,1); return; }
+    bool Mouse=FRotator::NormalizeAxis(PC->GetControlRotation().Pitch)>0.f && PC->GetControlRotation().Yaw>90.f;
+    bool Sights=Shooter->GetAimAlpha()>.98f && Shooter->WeaponRig->GetRelativeLocation().Equals(FVector(36,0,-2.2f),.2f);
+    UE_LOG(LogTemp,Display,TEXT("SPYCHO_SMOKE %s raw MouseY up/MouseX right (pitch %.2f yaw %.2f)"),Mouse?TEXT("PASS"):TEXT("FAIL"),PC->GetControlRotation().Pitch,PC->GetControlRotation().Yaw);
+    UE_LOG(LogTemp,Display,TEXT("SPYCHO_SMOKE %s smooth aligned aiming alpha %.3f"),Sights?TEXT("PASS"):TEXT("FAIL"),Shooter->GetAimAlpha());
+    bSmokeMovementPassed &= Mouse&&Sights;
     bool Stance=Shooter->bCareful&&Shooter->bIsCrouched;
     UE_LOG(LogTemp,Display,TEXT("SPYCHO_SMOKE %s actual Shift/Ctrl stance input"),Stance?TEXT("PASS"):TEXT("FAIL")); bSmokeMovementPassed &= Stance;
     PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::LeftShift,IE_Released,0.f));
     PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::LeftControl,IE_Released,0.f));
-    Shooter->Handgun->Fire(FRotator(85,0,0));
+    SmokeFeedbackBefore=Shooter->GetShotFeedbackCount();
+    PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::LeftMouseButton,IE_Pressed,1.f));
+    FTimerHandle T; GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::SmokeCheckTrigger,.05f,false);
+}
+void ASpychoGameMode::SmokeCheckTrigger()
+{
+    auto* PC=GetWorld()->GetFirstPlayerController(); auto* Shooter=PC?Cast<ASpychoCharacter>(PC->GetPawn()):nullptr;
+    if (!Shooter) { FPlatformMisc::RequestExitWithStatus(false,1); return; }
+    bool Responsive=Shooter->Handgun->Magazine==5&&Shooter->GetShotFeedbackCount()==SmokeFeedbackBefore+1;
+    UE_LOG(LogTemp,Display,TEXT("SPYCHO_SMOKE %s actual trigger immediate single feedback/ammo"),Responsive?TEXT("PASS"):TEXT("FAIL"));
+    bSmokeMovementPassed &= Responsive;
+    PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::LeftMouseButton,IE_Released,0.f));
+    PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::RightMouseButton,IE_Released,0.f));
     Shooter->Handgun->Fire(FRotator(85,0,0));
     bSmokeAmmoPassed=Shooter->Handgun->Magazine==5;
+    FTimerHandle T; GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::SmokeBufferedTrigger,.17f,false);
+}
+void ASpychoGameMode::SmokeBufferedTrigger()
+{
+    auto* PC=GetWorld()->GetFirstPlayerController();
+    if (!PC || !PC->GetPawn()) { FPlatformMisc::RequestExitWithStatus(false,1); return; }
+    PC->SetControlRotation(FRotator(85,0,0));
+    PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::LeftMouseButton,IE_Pressed,1.f));
+    FTimerHandle T; GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::SmokeCheckBuffer,.13f,false);
+}
+void ASpychoGameMode::SmokeCheckBuffer()
+{
+    auto* PC=GetWorld()->GetFirstPlayerController(); auto* Shooter=PC?Cast<ASpychoCharacter>(PC->GetPawn()):nullptr;
+    if (!Shooter) { FPlatformMisc::RequestExitWithStatus(false,1); return; }
+    PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::LeftMouseButton,IE_Released,0.f));
+    bool Buffered=Shooter->Handgun->Magazine==4&&Shooter->GetShotFeedbackCount()==SmokeFeedbackBefore+2;
+    UE_LOG(LogTemp,Display,TEXT("SPYCHO_SMOKE %s early trigger buffered once within 80ms"),Buffered?TEXT("PASS"):TEXT("FAIL"));
+    bSmokeAmmoPassed &= Buffered;
     Shooter->Handgun->Reload(); Shooter->Handgun->Fire(FRotator(85,0,0));
-    bSmokeAmmoPassed &= Shooter->Handgun->bReloading && Shooter->Handgun->Magazine==5;
+    bSmokeAmmoPassed &= Shooter->Handgun->bReloading && Shooter->Handgun->Magazine==4;
     FTimerHandle T; GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::RunSmokeTest,2.5f,false);
 }
 void ASpychoGameMode::RunSmokeTest()
@@ -154,11 +199,11 @@ void ASpychoGameMode::RunSmokeTest()
     auto* PC=GetWorld()->GetFirstPlayerController(); auto* Shooter=PC?Cast<ASpychoCharacter>(PC->GetPawn()):nullptr;
     ASpychoCharacter* Bot=nullptr; for (TActorIterator<ASpychoCharacter> It(GetWorld()); It; ++It) if (It->bTestOpponent) Bot=*It;
     if (!Shooter || !Bot) { UE_LOG(LogTemp,Error,TEXT("SPYCHO_SMOKE FAIL missing pawns")); FPlatformMisc::RequestExitWithStatus(false,1); return; }
-    bSmokeAmmoPassed &= Shooter->Handgun->Magazine==6 && Shooter->Handgun->Reserve==11 && !Shooter->Handgun->bReloading;
+    bSmokeAmmoPassed &= Shooter->Handgun->Magazine==6 && Shooter->Handgun->Reserve==10 && !Shooter->Handgun->bReloading;
     UE_LOG(LogTemp,Display,TEXT("SPYCHO_SMOKE %s rate limit and timed reload"),bSmokeAmmoPassed?TEXT("PASS"):TEXT("FAIL"));
     Bot->Patrol.Empty(); Bot->SetActorLocation(FVector(310,320,90));
     Shooter->SetActorLocation(FVector(0,320,90));
-    FVector Origin=Shooter->Camera->GetComponentLocation(); // hallway shot through x=120 drywall, away from doorway at y=450
+    FVector Origin=Shooter->Camera->GetComponentLocation(); // hallway shot through x=80 drywall, away from doorway at y=450
     FRotator Aim=(Bot->GetActorLocation()-Origin).Rotation(); Shooter->Handgun->Fire(Aim);
     auto* GS=GetGameState<ASpychoGameState>();
     bool Pass=Bot->Health->Health<=0.f && Shooter->Handgun->Magazine==5 && !GS->bRoundActive && GS->Evidence.Num()>=2;

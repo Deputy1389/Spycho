@@ -9,6 +9,7 @@
 #include "Camera/CameraComponent.h"
 #include "EngineUtils.h"
 #include "TimerManager.h"
+#include "InputKeyEventArgs.h"
 void ASpychoPlayerController::SetupInputComponent()
 {
     Super::SetupInputComponent();
@@ -34,7 +35,11 @@ void ASpychoPlayerController::ClientSmokePrepare_Implementation(int32 Round)
 }
 void ASpychoPlayerController::SmokeFire()
 {
-    if (auto* C=Cast<ASpychoCharacter>(GetPawn())) C->ServerFire((FVector(310,320,90)-C->Camera->GetComponentLocation()).Rotation());
+    if (auto* C=Cast<ASpychoCharacter>(GetPawn()))
+    {
+        SetControlRotation((FVector(310,320,90)-C->Camera->GetComponentLocation()).Rotation());
+        InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::LeftMouseButton,IE_Pressed,1.f));
+    }
     FTimerHandle T; GetWorldTimerManager().SetTimer(T,this,&ASpychoPlayerController::SmokeVerifyFirst,1.1f,false);
 }
 void ASpychoPlayerController::SmokeVerifyFirst()
@@ -43,7 +48,8 @@ void ASpychoPlayerController::SmokeVerifyFirst()
     int32 Dead=0,Bots=0,Open=0;
     for (TActorIterator<ASpychoCharacter> It(GetWorld());It;++It) { Dead+=It->Health->Health<=0.f; Bots+=It->bTestOpponent; }
     for (TActorIterator<ASpychoDoor> It(GetWorld());It;++It) Open+=It->bOpen;
-    bool Passed=GS&&C&&!GS->bRoundActive&&C->Handgun->Magazine==5&&GS->Evidence.Num()>=2&&Dead==1&&Bots==0&&Open>0;
+    InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::LeftMouseButton,IE_Released,0.f));
+    bool Passed=GS&&C&&!GS->bRoundActive&&C->Handgun->Magazine==5&&C->GetShotFeedbackCount()==1&&GS->Evidence.Num()>=2&&Dead==1&&Bots==0&&Open>0;
     UE_LOG(LogTemp,Display,TEXT("SPYCHO_NET_CLIENT %s replicated wall kill/ammo/marks/round/door (dead=%d bots=%d open=%d)"),Passed?TEXT("PASS"):TEXT("FAIL"),Dead,Bots,Open);
     ServerSmokeResult(Passed,false);
     FTimerHandle T; GetWorldTimerManager().SetTimer(T,this,&ASpychoPlayerController::SmokeVerifyReset,5.2f,false);

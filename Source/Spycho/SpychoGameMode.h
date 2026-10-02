@@ -22,9 +22,12 @@ private:
     void Creak();
     void BeginSmokeTest();
     void SmokeCheckMovement(); void SmokeBeginAmmo();
+    void SmokeCheckTrigger();
+    void SmokeBufferedTrigger(); void SmokeCheckBuffer();
     void RunSmokeTest();
     bool bSmokeAmmoPassed = false;
     bool bSmokeMovementPassed = false;
+    int32 SmokeFeedbackBefore = 0;
     FVector SmokeMovementStart;
     void BeginNetworkSmoke();
     bool bNetworkSmokeStarted = false;
