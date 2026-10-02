@@ -12,19 +12,18 @@ The 14 x 9 m house follows the supplied overhead reference: lounge at one end of
 |---|---|
 | WASD / mouse | Move / look |
 | Hold Shift | Sprint (4.2 m/s), loud footsteps |
-| Hold Alt | Slow walk (0.95 m/s), quieter footsteps and doors |
-| Hold Ctrl | Crouch (0.85 m/s) |
+| Hold Ctrl (Alt also works) | Slow walk (0.95 m/s), quieter footsteps and doors |
 | Left mouse | One shot per click |
 | Hold right mouse | Smooth iron-sight aiming |
 | R | Audible 2.1-second reload |
-| E | Open/close a door within 1.9 m |
+| E | Open/close a door within 2.4 m |
 | F3 | Developer traces and noise overlay |
 | F5 | Reset solo/listen-host round |
 | Tilde | Console |
 
 Six rounds loaded, twelve spare. Mouse-up looks up. Valid shots give immediate sound/recoil; the pistol accepts one shot every **0.16 seconds**. A click during that cooldown queues one follow-up shot, including while aiming. Holding the trigger does not repeat. A lethal hit ends the round; both combatants respawn after five seconds. No crosshair, hit markers or enemy location UI.
 
-The bot patrols connected rooms, pauses, opens doors, and uses the same footsteps, ammunition, damage and penetration as a player. It reacts to visible opponents or a noisy estimated location and can shoot through a wall. Quiet movement reduces its hearing range; it does not track your live position through walls.
+The bot slow-walks at 0.75 m/s, waits 7–12 seconds at the start and 8–15 seconds between room moves, and opens doors, and uses the same footsteps, ammunition, damage and penetration as a player. It listens from cover after noises. Loud gunfire/sprinting can prompt one delayed wall shot; quiet sounds do not prompt blind fire or select a room to rush. Visible combat needs clear chest and head sight lines. A stationary hidden player supplies no location information. Quiet movement reduces its hearing range; it does not track your live position through walls.
 
 ## Two-player direct IP
 
@@ -45,4 +44,4 @@ Python 3 helpers discover the installed engine or use `SPYCHO_UE_ROOT`. Windows 
 - `python Tools/package.py OUTPUT_DIRECTORY`: Windows Development package.
 - `python Tools/run.py assets`: reimport checked-in source art, rebuild House, and apply final materials/signs. **Replaces hand edits to House.**
 
-All map/material/audio/art assets are checked in. Editor Python is only for asset generation. Helpers set COMSPEC locally to cmd.exe. See [asset sources and licenses](docs/ASSETS.md), [verification and limitations](docs/CURRENT_STATUS.md). Original procedural audio tooling remains `Tools/generate_audio.py`.
+All map/material/audio/art assets are checked in. Editor Python is only for asset generation. Helpers set COMSPEC locally to cmd.exe. See [asset sources and licenses](docs/ASSETS.md), [verification and limitations](docs/CURRENT_STATUS.md). Recorded CC0 audio replaces the original placeholders, with four footstep variants per surface. Optional audio regeneration: install numpy and soundfile, then run `Tools/prepare_recorded_audio.py` and `Tools/run.py assets`. Door panels overlap their frames; E uses a nearby visible door within a forgiving facing cone and also works during the round countdown. Crouch has been removed.

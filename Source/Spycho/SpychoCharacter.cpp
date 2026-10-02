@@ -13,6 +13,8 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Animation/AnimSequence.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/PlayerController.h"
+#include "EngineUtils.h"
 #include "Net/UnrealNetwork.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -26,7 +28,7 @@ ASpychoCharacter::ASpychoCharacter()
     Camera->SetRelativeLocation(FVector(0,0,64)); Camera->bUsePawnControlRotation = true; Camera->FieldOfView=80.f;
     Camera->PostProcessSettings.bOverride_AutoExposureBias=true; Camera->PostProcessSettings.AutoExposureBias=-2.f;
     auto* Move = GetCharacterMovement(); Move->MaxWalkSpeed=210.f; Move->MaxWalkSpeedCrouched=85.f;
-    Move->GetNavAgentPropertiesRef().bCanCrouch=true; Move->SetCrouchedHalfHeight(52.f); Move->BrakingDecelerationWalking=800.f;
+    Move->GetNavAgentPropertiesRef().bCanCrouch=false; Move->BrakingDecelerationWalking=800.f;
     Move->MaxAcceleration=650.f; Move->bRunPhysicsWithNoController=true;
     Health=CreateDefaultSubobject<USpychoHealth>(TEXT("Health")); Handgun=CreateDefaultSubobject<USpychoHandgun>(TEXT("Handgun")); Penetration=CreateDefaultSubobject<USpychoPenetration>(TEXT("Penetration"));
     ConstructorHelpers::FObjectFinder<USkeletalMesh> Manny(TEXT("/Game/Characters/Mannequins/Meshes/SKM_Manny_Simple"));
@@ -70,7 +72,7 @@ void ASpychoCharacter::SetupPlayerInputComponent(UInputComponent* Input)
     Input->BindKey(EKeys::LeftMouseButton,IE_Pressed,this,&ASpychoCharacter::Fire); Input->BindAction("Reload",IE_Pressed,this,&ASpychoCharacter::Reload);
     Input->BindKey(EKeys::RightMouseButton,IE_Pressed,this,&ASpychoCharacter::AimDown); Input->BindKey(EKeys::RightMouseButton,IE_Released,this,&ASpychoCharacter::AimUp);
     Input->BindAction("Interact",IE_Pressed,this,&ASpychoCharacter::Interact);
-    Input->BindAction("Crouch",IE_Pressed,this,&ASpychoCharacter::CrouchDown); Input->BindAction("Crouch",IE_Released,this,&ASpychoCharacter::CrouchUp);
+    Input->BindKey(EKeys::LeftControl,IE_Pressed,this,&ASpychoCharacter::CarefulDown); Input->BindKey(EKeys::LeftControl,IE_Released,this,&ASpychoCharacter::CarefulUp);
     Input->BindKey(EKeys::LeftAlt,IE_Pressed,this,&ASpychoCharacter::CarefulDown); Input->BindKey(EKeys::LeftAlt,IE_Released,this,&ASpychoCharacter::CarefulUp);
     Input->BindKey(EKeys::LeftShift,IE_Pressed,this,&ASpychoCharacter::SprintDown); Input->BindKey(EKeys::LeftShift,IE_Released,this,&ASpychoCharacter::SprintUp);
 }
@@ -97,10 +99,13 @@ void ASpychoCharacter::Reload()
     ServerReload();
 }
 void ASpychoCharacter::Interact() { ServerInteract(); }
-void ASpychoCharacter::CrouchDown() { if (Health->Health>0.f) Crouch(); }
-void ASpychoCharacter::CrouchUp() { UnCrouch(); }
 void ASpychoCharacter::CarefulDown() { bCareful=true; OnRep_Careful(); ServerCareful(true); }
-void ASpychoCharacter::CarefulUp() { bCareful=false; OnRep_Careful(); ServerCareful(false); }
+void ASpychoCharacter::CarefulUp()
+{
+    auto* PC=Cast<APlayerController>(Controller);
+    bCareful=PC&&(PC->IsInputKeyDown(EKeys::LeftControl)||PC->IsInputKeyDown(EKeys::LeftAlt));
+    OnRep_Careful();ServerCareful(bCareful);
+}
 void ASpychoCharacter::ServerCareful_Implementation(bool V) { bCareful=V; OnRep_Careful(); }
 void ASpychoCharacter::SprintDown() { bSprinting=true;OnRep_Careful();ServerSprint(true); }
 void ASpychoCharacter::SprintUp() { bSprinting=false;OnRep_Careful();ServerSprint(false); }
@@ -111,11 +116,25 @@ void ASpychoCharacter::ServerReload_Implementation() { Handgun->Reload(); }
 void ASpychoCharacter::ServerInteract_Implementation()
 {
     auto* GS=GetWorld()->GetGameState<ASpychoGameState>();
-    if (Health->Health<=0.f || !GS || !GS->bRoundActive) return;
-    FVector Origin=Camera->GetComponentLocation(); FHitResult Hit;
-    FCollisionQueryParams Q(SCENE_QUERY_STAT(SpychoInteraction),false,this);
-    if (GetWorld()->LineTraceSingleByChannel(Hit,Origin,Origin+GetBaseAimRotation().Vector()*190.f,ECC_Visibility,Q))
-        if (auto* Door=Cast<ASpychoDoor>(Hit.GetActor())) Door->Toggle(bCareful||bIsCrouched,this);
+    if (Health->Health<=0.f || !GS) return;
+    FVector Origin=Camera->GetComponentLocation(),Forward=GetBaseAimRotation().Vector();
+    ASpychoDoor* Best=nullptr;float BestScore=MAX_flt;
+    for (TActorIterator<ASpychoDoor> It(GetWorld());It;++It)
+    {
+        // Pick an interior point nearest the eyes, so touching a door or
+        // looking near its edge doesn't force the player to aim at waist height.
+        FTransform PanelTransform=It->Panel->GetComponentTransform();
+        FVector LocalEyes=PanelTransform.InverseTransformPosition(Origin);
+        FVector Target=PanelTransform.TransformPosition(FVector(0,FMath::Clamp(LocalEyes.Y,-45.f,45.f),FMath::Clamp(LocalEyes.Z,-45.f,45.f)));
+        FVector Delta=Target-Origin;
+        float Distance=Delta.Size(),Facing=FVector::DotProduct(Forward,Delta.GetSafeNormal());
+        if (Distance>240.f || Facing<.65f) continue;
+        FHitResult Hit;FCollisionQueryParams Q(SCENE_QUERY_STAT(SpychoInteraction),false,this);
+        if (!GetWorld()->LineTraceSingleByChannel(Hit,Origin,Target,ECC_Visibility,Q) || Hit.GetActor()!=*It) continue;
+        float Score=Distance+(1.f-Facing)*150.f;
+        if (Score<BestScore) { Best=*It;BestScore=Score; }
+    }
+    if (Best) Best->Toggle(bCareful,this);
 }
 void ASpychoCharacter::Tick(float Dt)
 {
@@ -129,7 +148,7 @@ void ASpychoCharacter::UpdateFootsteps(float Dt)
     FVector Delta=GetActorLocation()-LastStepPosition; Delta.Z=0; LastStepPosition=GetActorLocation();
     if (!GetCharacterMovement()->IsMovingOnGround() || GetVelocity().Size2D()<15.f) { DistanceSinceStep=0.f; return; }
     DistanceSinceStep+=FMath::Min(Delta.Size(),GetVelocity().Size2D()*Dt*2.f);
-    float Stride=bIsCrouched?70.f:(bCareful?95.f:(bSprinting?150.f:125.f));
+    float Stride=bCareful?95.f:(bSprinting?150.f:125.f);
     if (DistanceSinceStep<Stride) return;
     DistanceSinceStep-=Stride;
     ++FootstepCount;
@@ -139,7 +158,7 @@ void ASpychoCharacter::UpdateFootsteps(float Dt)
     ESpychoNoise Kind=ESpychoNoise::Wood;
     if (Surface && Surface->SurfaceType==SurfaceType3) Kind=ESpychoNoise::Carpet;
     if (Surface && Surface->SurfaceType==SurfaceType4) Kind=ESpychoNoise::Tile;
-    float Gain=(bIsCrouched?0.04f:(bCareful?0.07f:(bSprinting?.55f:.23f)))*(Surface?Surface->FootstepGain:1.f);
+    float Gain=(bCareful?0.055f:(bSprinting?.55f:.23f))*(Surface?Surface->FootstepGain:1.f);
     if (auto* GS=GetWorld()->GetGameState<ASpychoGameState>())
     {
         FVector Location=Floor.bBlockingHit?Floor.ImpactPoint:GetActorLocation();GS->Noise(Kind,Location,Gain);GS->NotifyHearing(Kind,Location,Gain,this);

@@ -50,7 +50,7 @@ public:
     UFUNCTION() void OnRep_Careful();
 private:
     void Forward(float Value); void Right(float Value); void Turn(float Value); void Look(float Value);
-    void Fire(); void Reload(); void Interact(); void CrouchDown(); void CrouchUp(); void CarefulDown(); void CarefulUp();
+    void Fire(); void Reload(); void Interact(); void CarefulDown(); void CarefulUp();
     void UpdateFootsteps(float DeltaSeconds);
     float DistanceSinceStep = 0.f;
     FVector LastStepPosition;

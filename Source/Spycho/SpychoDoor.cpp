@@ -14,7 +14,7 @@ ASpychoDoor::ASpychoDoor()
     ConstructorHelpers::FObjectFinder<UStaticMesh> Cube(TEXT("/Engine/BasicShapes/Cube.Cube")); Panel->SetStaticMesh(Cube.Object);
     ConstructorHelpers::FObjectFinder<UMaterialInterface> Mat(TEXT("/Game/Materials/Wood.Wood")); Panel->SetMaterial(0,Mat.Object);
     ConstructorHelpers::FObjectFinder<UPhysicalMaterial> Phys(TEXT("/Game/Surfaces/Wood.Wood")); DoorSurface=Phys.Object;
-    Panel->SetRelativeLocation(FVector(0,45,102)); Panel->SetRelativeScale3D(FVector(0.045f,0.9f,2.04f));
+    Panel->SetRelativeLocation(FVector(0,50.5f,105.25f)); Panel->SetRelativeScale3D(FVector(0.045f,1.01f,2.105f));
     Panel->SetCollisionProfileName(TEXT("BlockAllDynamic"));
 }
 void ASpychoDoor::OnConstruction(const FTransform& Transform)

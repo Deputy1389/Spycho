@@ -18,8 +18,8 @@ for path in u.EditorAssetLibrary.list_assets('/Game/ThirdParty/Furniture',recurs
     if not isinstance(mesh,u.StaticMesh):continue
     for i,slot in enumerate(mesh.get_editor_property('static_materials')):
         name=str(slot.get_editor_property('material_slot_name'))
-        if name in materials:mesh.set_material(i,materials[name])
-    u.EditorAssetLibrary.save_loaded_asset(mesh,only_if_is_dirty=False)
+        if name in materials and mesh.get_material(i)!=materials[name]:mesh.set_material(i,materials[name])
+    u.EditorAssetLibrary.save_loaded_asset(mesh,only_if_is_dirty=True)
 weapon=u.load_asset('/Game/Weapons/Pistol/Materials/MI_Weapon_Pistol')
 def tint(material,name,color):
     values=list(material.get_editor_property('vector_parameter_values'))

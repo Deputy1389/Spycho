@@ -12,6 +12,7 @@ class SPYCHO_API ASpychoHunterController : public AAIController
 public:
     ASpychoHunterController();
     virtual void Tick(float DeltaSeconds) override;
+    virtual void OnPossess(APawn* InPawn) override;
     void HearNoise(ESpychoNoise Kind,FVector Location,float Gain,AActor* Source);
     int32 ShotsTaken = 0;
     int32 HeardEvents = 0;
@@ -23,6 +24,7 @@ private:
     float AttackReady = 0.f;
     float NextAttack = 0.f;
     float PauseUntil = 0.f;
+    bool bWallShotAllowed = false;
     int32 Destination = -1;
     void PlanRoute(int32 Goal);
 };

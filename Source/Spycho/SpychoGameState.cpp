@@ -16,6 +16,10 @@ ASpychoGameState::ASpychoGameState()
     bReplicates = true;
     const TCHAR* Paths[] = {TEXT("/Game/Audio/StepWood"), TEXT("/Game/Audio/StepCarpet"), TEXT("/Game/Audio/StepTile"), TEXT("/Game/Audio/Gunshot"), TEXT("/Game/Audio/Reload"), TEXT("/Game/Audio/Door"), TEXT("/Game/Audio/Impact"), TEXT("/Game/Audio/Creak")};
     for (const TCHAR* Path : Paths) { ConstructorHelpers::FObjectFinder<USoundBase> Sound(Path); Sounds.Add(Sound.Object); }
+    for (const TCHAR* Name : {TEXT("StepWood"),TEXT("StepCarpet"),TEXT("StepTile")}) for (int32 i=1;i<=3;++i)
+    {
+        ConstructorHelpers::FObjectFinder<USoundBase> Sound(*FString::Printf(TEXT("/Game/Audio/%s_%d"),Name,i));FootstepVariants.Add(Sound.Object);
+    }
     Attenuation = CreateDefaultSubobject<USoundAttenuation>(TEXT("SpatialAudio"));
     auto& S = Attenuation->Attenuation;
     S.bAttenuate = true; S.bSpatialize = true; S.bEnableOcclusion = true;
@@ -60,8 +64,17 @@ void ASpychoGameState::Noise_Implementation(ESpychoNoise Kind, FVector Location,
     Settings->Attenuation=Attenuation->Attenuation;
     Settings->Attenuation.FalloffDistance=Kind==ESpychoNoise::Gunshot?6000.f:1800.f;
     Settings->Attenuation.OcclusionVolumeAttenuation=0.65f*FMath::Pow(0.85f,FMath::Max(0,Walls-1));
-    Settings->Attenuation.OcclusionLowPassFilterFrequency=1800.f/FMath::Max(1,Walls);
-    if (Sounds.IsValidIndex(Index) && Sounds[Index]) UGameplayStatics::PlaySoundAtLocation(this, Sounds[Index], Location, Gain, FMath::FRandRange(0.96f, 1.04f), 0.f, Settings);
+    Settings->Attenuation.OcclusionLowPassFilterFrequency=3000.f/FMath::Max(1,Walls);
+    USoundBase* Sound=Sounds.IsValidIndex(Index)?Sounds[Index].Get():nullptr;
+    if (Index<=2)
+    {
+        int32 Variant=FMath::RandRange(0,3);
+        if (Variant>0 && FootstepVariants.IsValidIndex(Index*3+Variant-1)) Sound=FootstepVariants[Index*3+Variant-1];
+        Location.Z+=8.f; // keep a floor-origin sound out of its own floor collision
+    }
+    float Volume=Gain*(Kind==ESpychoNoise::Gunshot?.28f:1.f);
+    float Pitch=Index<=2?FMath::FRandRange(.98f,1.02f):1.f;
+    if (Sound) UGameplayStatics::PlaySoundAtLocation(this,Sound,Location,Volume,Pitch,0.f,Settings);
     if (IsDebug())
     {
         DrawDebugSphere(GetWorld(), Location, FMath::Clamp(Gain * 200.f, 25.f, 600.f), 16, FColor::Cyan, false, 1.5f);

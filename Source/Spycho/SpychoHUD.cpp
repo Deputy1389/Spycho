@@ -16,7 +16,7 @@ void ASpychoHUD::DrawHUD()
     FLinearColor Muted(0.55f,0.55f,0.5f);
     if (C) DrawText(C->Handgun->bReloading?TEXT("reloading"):C->Handgun->Magazine==0?TEXT("Empty — R reload"):FString::Printf(TEXT("%d / %d"),C->Handgun->Magazine,C->Handgun->Reserve),Muted,Canvas->SizeX-160,Canvas->SizeY-55,nullptr,1.1f);
     if (GS && !GS->bRoundActive) DrawText(GS->RoundMessage,Muted,Canvas->SizeX*0.4f,Canvas->SizeY*0.46f,nullptr,1.3f);
-    if (GetWorld()->GetTimeSeconds()<18.f) DrawText(TEXT("WASD  move   Shift  sprint   Alt  slow walk   Ctrl  crouch   E  door   R  reload"),Muted,30,Canvas->SizeY-55);
+    if (GetWorld()->GetTimeSeconds()<18.f) DrawText(TEXT("WASD  move   Shift  sprint   Ctrl  slow walk   E  door   R  reload"),Muted,30,Canvas->SizeY-55);
     if (PC && PC->bDebug)
     {
         DrawText(TEXT("DEVELOPER  F3 hide  |  F5 host reset"),FLinearColor::Yellow,20,20);

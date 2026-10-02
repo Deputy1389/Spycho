@@ -18,6 +18,7 @@ public:
     UPROPERTY(Replicated) bool bRoundActive = true;
     UPROPERTY(Replicated) FString RoundMessage = TEXT("Listen carefully.");
     UPROPERTY() TArray<TObjectPtr<USoundBase>> Sounds;
+    UPROPERTY() TArray<TObjectPtr<USoundBase>> FootstepVariants;
     UPROPERTY() TObjectPtr<USoundAttenuation> Attenuation;
     UPROPERTY() TArray<TObjectPtr<AActor>> Evidence;
     FString LastShotDebug;

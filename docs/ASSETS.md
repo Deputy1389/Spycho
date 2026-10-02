@@ -1,6 +1,6 @@
 # Asset sources and licenses
 
-## Kenney Furniture Kit â€” CC0
+## Kenney Furniture Kit — CC0
 
 Source: https://kenney.nl/assets/furniture-kit
 
@@ -8,7 +8,7 @@ Source: https://kenney.nl/assets/furniture-kit
 
 Downloaded archive SHA-256: `e67652d0932cee41683f74711c03d3e192a2af9979ef8e6b237711f5482d46b0`.
 
-## ambientCG â€” CC0
+## ambientCG — CC0
 
 - Plaster001: https://ambientcg.com/view?id=Plaster001
 - WoodFloor051: https://ambientcg.com/view?id=WoodFloor051
@@ -24,4 +24,12 @@ Pistol mesh/material/texture assets and Manny mesh, physics, materials and selec
 
 ## Project-authored assets
 
-House layout, surface/room materials, physical materials, procedural WAV audio, game code and asset tooling were authored for this project. Screenshots are actual rendered game captures. No image-generated gameplay art is included.
+House layout, surface/room materials, physical materials, game code and asset/audio tooling were authored for this project. Screenshots are actual rendered game captures. No image-generated gameplay art is included.
+
+## Recorded audio — CC0
+
+- Kenney Impact Sounds: https://kenney.nl/assets/impact-sounds — selected wood/carpet/concrete footsteps (four each), wood/plank and metal impacts. Used for footsteps, door/latch, impacts and subtle building foley.
+- “Gunshots” by kurt: https://opengameart.org/content/gunshots — one transient trimmed from the supplied 22 Pistol.wav recording.
+- “Gun reload sounds” by SpringySpringo: https://opengameart.org/content/gun-reload-sounds — airsoft magazine/slide handling fitted to the 2.1-second reload.
+
+These source pages label the recordings CC0. Original selected recordings are in Content/Audio/Recordings; processed mono 44.1 kHz 16-bit WAVs in Content/Audio/Source. Tools/prepare_recorded_audio.py documents trimming, normalization, layering and duration fitting. Gunfire remains distinct from quiet foley, with a playback multiplier that keeps the sampled transient below full scale.

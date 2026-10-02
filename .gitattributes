@@ -1,3 +1,5 @@
 *.uasset binary
 *.umap binary
 *.fbx binary
+*.wav binary
+*.ogg binary

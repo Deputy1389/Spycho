@@ -72,7 +72,9 @@ def partition(name,axis,coord,lo,hi,opening,angle):
         trimpos=(coord,opening+sign*52,104) if axis=='x' else (opening+sign*52,coord,104)
         trimsize=(5,4,208) if axis=='x' else (4,5,208)
         box(name+' frame',trimpos,trimsize,'Trim','Drywall')
-    door(name+' door',(coord,opening-45,0) if axis=='x' else (opening+45,coord,0),0 if axis=='x' else 90,angle)
+    header=(coord,opening,210) if axis=='x' else (opening,coord,210)
+    box(name+' header',header,(6,108,6) if axis=='x' else (108,6,6),'Trim','Drywall')
+    door(name+' door',(coord,opening-50.5,0) if axis=='x' else (opening+50.5,coord,0),0 if axis=='x' else 90,angle)
 def furnishing(name,xy,height,yaw=0,z=0):
     mesh=u.load_asset('/Game/ThirdParty/Furniture/'+name);assert mesh,name
     bounds=mesh.get_bounds();scale=height/(2*bounds.box_extent.z)

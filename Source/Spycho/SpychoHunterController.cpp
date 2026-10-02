@@ -25,6 +25,12 @@ namespace
     }
 }
 ASpychoHunterController::ASpychoHunterController() { PrimaryActorTick.bCanEverTick=true; }
+void ASpychoHunterController::OnPossess(APawn* InPawn)
+{
+    Super::OnPossess(InPawn);
+    PauseUntil=GetWorld()->GetTimeSeconds()+FMath::FRandRange(7.f,12.f);
+    if (auto* C=Cast<ASpychoCharacter>(InPawn)) { C->bCareful=true;C->OnRep_Careful(); }
+}
 void ASpychoHunterController::HearNoise(ESpychoNoise Kind,FVector Location,float Gain,AActor* Source)
 {
     auto* C=Cast<ASpychoCharacter>(GetPawn());
@@ -37,12 +43,15 @@ void ASpychoHunterController::HearNoise(ESpychoNoise Kind,FVector Location,float
     float Now=GetWorld()->GetTimeSeconds();
     // Preserve a committed estimate through the reaction delay rather than
     // following every footstep with perfect aim through an opaque partition.
-    if (MemoryUntil<Now || Now>AttackReady || Kind==ESpychoNoise::Gunshot)
+    if (MemoryUntil<Now || Kind==ESpychoNoise::Gunshot)
     {
-        LastKnown=Location+FVector(FMath::FRandRange(-65.f,65.f),FMath::FRandRange(-65.f,65.f),0); LastKnown.Z=115.f;
-        AttackReady=Now+FMath::FRandRange(.75f,1.25f);
-        MemoryUntil=Now+(Kind==ESpychoNoise::Gunshot?6.f:3.5f);
-        PlanRoute(Closest(LastKnown));
+        LastKnown=Location+FVector(FMath::FRandRange(-100.f,100.f),FMath::FRandRange(-100.f,100.f),0); LastKnown.Z=115.f;
+        AttackReady=Now+FMath::FRandRange(2.f,3.f);
+        MemoryUntil=Now+5.f;
+        bWallShotAllowed=Kind==ESpychoNoise::Gunshot || Gain>=.3f;
+        // Listen at the current cover. A sound never chooses a room to rush.
+        PauseUntil=MemoryUntil+FMath::FRandRange(3.f,6.f);
+        C->GetCharacterMovement()->StopMovementImmediately();
     }
 }
 void ASpychoHunterController::PlanRoute(int32 Goal)
@@ -72,12 +81,14 @@ void ASpychoHunterController::Tick(float Dt)
     {
         auto* Target=Cast<ASpychoCharacter>(It->Get()->GetPawn()); if (!Target || Target->Health->Health<=0) continue;
         FVector Delta=Target->GetActorLocation()-C->GetActorLocation();
-        if (Delta.Size2D()>1100 || FVector::DotProduct(C->GetActorForwardVector(),Delta.GetSafeNormal2D())<-.15f) continue;
+        if (Delta.Size2D()>1100 || FVector::DotProduct(C->GetActorForwardVector(),Delta.GetSafeNormal2D())<.65f) continue;
         FHitResult Hit; FCollisionQueryParams Q(SCENE_QUERY_STAT(SpychoBotSight),false,C);
         GetWorld()->LineTraceSingleByChannel(Hit,C->Camera->GetComponentLocation(),Target->GetActorLocation()+FVector(0,0,25),ECC_Visibility,Q);
         if (Hit.GetActor()!=Target) continue;
-        if (MemoryUntil<Now) AttackReady=Now+.7f;
-        Visible=true; LastKnown=Target->GetActorLocation()+FVector(0,0,25);MemoryUntil=Now+2.f; break;
+        GetWorld()->LineTraceSingleByChannel(Hit,C->Camera->GetComponentLocation(),Target->Camera->GetComponentLocation(),ECC_Visibility,Q);
+        if (Hit.GetActor()!=Target) continue;
+        if (MemoryUntil<Now) AttackReady=Now+1.2f;
+        Visible=true; LastKnown=Target->GetActorLocation()+FVector(0,0,25);MemoryUntil=Now+2.f;bWallShotAllowed=false; break;
     }
     if (C->Handgun->Magazine==0) { C->Handgun->Reload(); return; }
     if (C->Handgun->bReloading) return;
@@ -86,14 +97,14 @@ void ASpychoHunterController::Tick(float Dt)
     {
         FRotator Aim=(LastKnown-C->Camera->GetComponentLocation()).Rotation();SetControlRotation(Aim);C->SetActorRotation(FRotator(0,Aim.Yaw,0));
         C->GetCharacterMovement()->StopMovementImmediately();
-        if (Now>=AttackReady && Now>=NextAttack)
+        if ((Visible || bWallShotAllowed) && Now>=AttackReady && Now>=NextAttack)
         {
             FVector Error=FVector(FMath::FRandRange(-20.f,20.f),FMath::FRandRange(-20.f,20.f),FMath::FRandRange(-12.f,12.f));
             int32 Before=C->Handgun->Magazine;C->Handgun->Fire((LastKnown+Error-C->Camera->GetComponentLocation()).Rotation());
             if (C->Handgun->Magazine<Before) ++ShotsTaken;
-            NextAttack=Now+FMath::FRandRange(1.1f,1.7f);
-            // One inferred wall shot, then move rather than emptying the magazine.
-            if (!Visible) { MemoryUntil=0;PauseUntil=Now+.4f; }
+            NextAttack=Now+FMath::FRandRange(1.8f,2.8f);
+            // One inferred wall shot, then wait and listen again.
+            if (!Visible) { MemoryUntil=0;bWallShotAllowed=false;PauseUntil=Now+FMath::FRandRange(6.f,10.f); }
         }
         return;
     }
@@ -108,12 +119,12 @@ void ASpychoHunterController::Tick(float Dt)
     FVector Delta=Nodes[Route[0]]-C->GetActorLocation();Delta.Z=0;
     if (Delta.Size()<35.f)
     {
-        Route.RemoveAt(0); if (Route.IsEmpty()) PauseUntil=Now+FMath::FRandRange(.6f,1.8f);return;
+        Route.RemoveAt(0); if (Route.IsEmpty()) PauseUntil=Now+FMath::FRandRange(8.f,15.f);return;
     }
     FHitResult Hit;FCollisionQueryParams Q(SCENE_QUERY_STAT(SpychoBotDoor),false,C);
     GetWorld()->LineTraceSingleByChannel(Hit,C->GetActorLocation(),C->GetActorLocation()+Delta.GetSafeNormal()*140.f,ECC_Visibility,Q);
     if (auto* Door=Cast<ASpychoDoor>(Hit.GetActor()))
-        if (!Door->bOpen) { Door->Toggle(true,C);PauseUntil=Now+.8f;return; }
-    C->GetCharacterMovement()->MaxWalkSpeed=MemoryUntil>Now?160.f:135.f;
+        if (!Door->bOpen) { Door->Toggle(true,C);PauseUntil=Now+2.f;return; }
+    C->GetCharacterMovement()->MaxWalkSpeed=75.f;
     SetControlRotation(Delta.Rotation());C->SetActorRotation(Delta.Rotation());C->AddMovementInput(Delta.GetSafeNormal());
 }
