@@ -21,7 +21,7 @@ void ASpychoDoor::OnConstruction(const FTransform& Transform)
 {
     Super::OnConstruction(Transform); if (DoorSurface) Panel->SetPhysMaterialOverride(DoorSurface);
 }
-void ASpychoDoor::Toggle(bool Carefully)
+void ASpychoDoor::Toggle(bool Carefully,AActor* Operator)
 {
     if (!HasAuthority()) return;
     if (bOpen)
@@ -34,7 +34,10 @@ void ASpychoDoor::Toggle(bool Carefully)
         }
     }
     bOpen=!bOpen; bCareful=Carefully; ForceNetUpdate();
-    if (auto* GS=GetWorld()->GetGameState<ASpychoGameState>()) GS->Noise(ESpychoNoise::Door,Panel->GetComponentLocation(),Carefully?0.12f:0.6f);
+    if (auto* GS=GetWorld()->GetGameState<ASpychoGameState>())
+    {
+        float Gain=Carefully?.12f:.6f;GS->Noise(ESpychoNoise::Door,Panel->GetComponentLocation(),Gain);GS->NotifyHearing(ESpychoNoise::Door,Panel->GetComponentLocation(),Gain,Operator?Operator:this);
+    }
 }
 void ASpychoDoor::Reset() { bOpen=false; Swing->SetRelativeRotation(FRotator::ZeroRotator); ForceNetUpdate(); }
 void ASpychoDoor::Tick(float Dt)

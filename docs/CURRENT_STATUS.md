@@ -1,49 +1,31 @@
-# Current status — playable v0.1.1
+# Current status — playable v0.2
 
-Built with Unreal Engine **5.8.2** on Windows. Development branch: `codex/spycho-playable-v0.1`. The empty repository received an initial project commit on `main` so the prototype can be reviewed in a draft PR. Do not merge automatically.
+Unreal Engine **5.8.2**, Windows Development. Branch `codex/spycho-playable-v0.1`; review in draft PR #1, do not merge automatically.
 
 ## Implemented
 
-- Deliberate replicated first-person movement, crouch and careful walk. Raw mouse axes correct vertical direction even with an old saved inverted axis mapping. A smaller multipart pistol and placeholder gloved hand share a smooth aiming transform with the sights.
-- Saved seven-space graybox: six side rooms and a 1.6 m hall, connecting routes, furniture cover, wood/carpet/tile floors and a front entrance. House footprint 12 x 14 m.
-- Six-round handgun with twelve reserve rounds, 0.28-second shot interval and an 80 ms single-click buffer. Valid trigger clicks predict shot sound/recoil immediately; accepted network events do not play them twice for the owner. Server-owned ammo, firing cadence, damage and high lethality remain. Recoil mostly returns, with a moving slide, brief muzzle light and a lowering weapon/magazine during the audible timed reload. No music, crosshair, hit markers or enemy UI.
-- Separate penetration component: physical-material asset properties control energy cost, thickness limit and resistance. A reverse trace against the exact convex component finds the exit and actual oblique thickness. Up to six penetrations; unknown surfaces and masonry stop bullets. Direct damage 130, starting energy 100; ordinary 12 cm drywall costs 8.4 energy and remains lethal.
-- Replicated entry/exit marks and short physics dust chips. Marks remain for the round; walls keep collision and cannot be walked through.
-- Eight original procedural mono WAV assets: floor footsteps, loud gunshot, mechanical reload, doors, impact and sparse building creak. Footstep cadence follows traveled distance. Crouch/careful gains are quieter. Native spatial attenuation/occlusion plus additional wall-count filtering; gunshots use the reliable firing event. No ambient music or constant loop.
-- Eleven replicated hinged doors, normal/careful opening, positional sound and blocking collision. Hall doors swing into rooms. Careful close refuses when a pawn is in the closed doorway region.
-- Solo patrol pauses along a route in the northeast study, produces real footsteps, takes normal damage and dies. It does not fight back. A second human removes it.
-- Two-player listen server/direct IP, authoritative shots/damage/death, replicated round state and automatic five-second reset. Reset restores pawns/ammo, closes doors and clears marks. Third connections are rejected.
-- F3-only developer traces, material thickness/energy/damage labels and audio source/gain/obstruction displays. F5 host/practice reset.
+- Reference-inspired 14 x 9 m house: lounge, short hall, study/den and dining/bedroom. Seven hinged doors, room labels, furnished rooms, parquet/plaster textures, soft ceiling lights and frosted window panels.
+- CC0 Kenney furnishings and ambientCG textures, plus Epic template pistol, first-person hands, animated Manny opponent and death ragdoll. See ASSETS.md for licenses.
+- Correct vertical mouse look, smooth aiming, immediate predicted shot feedback, 0.16-second semiautomatic cadence and one queued click throughout cooldown. Rapid clicks remain accepted during ADS. Six loaded/twelve reserve; audible 2.1-second reload.
+- Replicated sprint (Shift, 4.2 m/s), slow walk (Alt, 0.95 m/s), normal walk (2.1 m/s) and crouch (Ctrl, 0.85 m/s). Footsteps follow distance traveled; sprint is loud, slow/crouch quiet.
+- Armed bot patrols the connected rooms, opens doors and reloads. It reacts after a delay to visible opponents or a noisy estimated position; the estimate is frozen while the target is hidden. It can fire through walls. A second human removes the bot.
+- Opaque 2.5 cm interior walls block movement/sight and pass lethal handgun shots. Measured convex penetration consumes energy by actual thickness/material; masonry and unknown surfaces stop bullets. Persistent entry/exit evidence clears on round reset.
+- Positional footsteps, gunshots, reloads, doors, impacts and sparse creaks; simple wall obstruction filtering. No music, enemy UI or hit markers.
+- Authoritative two-player direct-IP/listen-server duel, replicated ammo/death/evidence/doors, automatic five-second reset. F5 host/solo reset; F3 optional developer overlay.
 
 ## Verification
 
-- SpychoEditor / Win64 / Development builds successfully with MSVC 14.51.36246 and SDK 10.0.26100.0. UE warns that this compiler is newer than its preferred version.
-- Unreal automation: `Spycho.Rules.Penetration` and `Spycho.Rules.AmmoAndRound` both pass. Covers material energy costs, successive/oblique thickness, damage limits, ammo conservation and fire eligibility during reload/death/round end.
-- Saved-map headless smoke passes actual simulated W movement (~92 cm in 0.6 s), raw mouse-up/right direction, smooth ADS alignment, Shift/Ctrl stance input, immediate single shot feedback, an early buffered trigger, fire rate lock, reload timing, lethal drywall hit, masonry protection, persistent entry/exit marks, round cleanup, all audio references and careful door toggle/reset.
-- Two separate editor game processes pass an actual remote-client trigger through drywall, exactly one owner feedback event, replicated health/death, ammo, marks, round end, door state, removal of the test bot and automatic respawn/reset.
-- Windows Development package builds/cooks/stages successfully. Cook reports zero errors/warnings. Packaged smoke verifies the same saved-map systems. Final packaged two-process networking also passes remote wall kill, replicated ammo/evidence/door/death and automatic round reset.
-- Actual rendered capture reviewed; fixed exposure keeps lighting readable and dim. Material/map/audio assets exist and are checked in. Generated caches, binaries and Saved files are ignored. `git diff --check` passes.
+Editor build and two Unreal rule tests pass. Saved-map checks cover actual movement/mouse/stance inputs, immediate shot feedback, six rapid shots while ADS, timed reload, wall kill, masonry protection, doors, sounds and reset. Bot checks cover roaming with actual footsteps, quiet-noise rejection, loud-noise investigation, an inferred wall shot and lethal visible combat. Two-process network checks cover one remote-client feedback event, wall kill, replicated ammo/evidence/door/death and automatic reset. Windows cooking/packaging and equivalent packaged checks are recorded in the deliverable VALIDATION.md. Rendered room, bot, ADS and plan views are inspected.
 
-## Run / reproduce
+## Reproduce
 
-Open the project and Play the House map, or run `python Tools/run.py play`. For the local packaged output launch `Windows/Spycho.exe`.
-
-Solo: open the entrance with E; move north along the central hallway. The patrol is in the northeast study. Listen near its east wall, then aim and fire through the opaque partition away from the doorway. F5 resets. See README for all controls and `Host` / `Join ADDRESS:7777`.
-
-`python Tools/run.py build`, `test`, `smoke`; `python Tools/network_smoke.py` for real network processes. Pass a packaged inner executable path to that script to test cooking/replication together. `python Tools/package.py OUTPUT_DIRECTORY` packages Win64. Helpers set `COMSPEC` only in their own process; this avoids the machine's inherited missing PowerShell path. No system shell setting was changed.
+See README for controls, direct-IP setup and Tools/run.py build/test/smoke/botsmoke. Tools/network_smoke.py accepts the packaged inner executable. Tools/package.py creates a Windows build. Tools/run.py assets rebuilds from checked-in art sources and replaces House map edits.
 
 ## Known limits
 
-- This is a primitive graybox with box furniture, cylinder silhouettes and a multipart primitive pistol with a placeholder glove. Weapon movement is procedural, with no finished skeletal animation, windows or environmental dressing. The sounds are original placeholders; directional clarity, headphone comfort and the quiet-to-gunshot balance still need human listening/playtests.
-- The multiplayer checks run on loopback. Physical two-machine LAN, packet loss/latency and human duel feel have not been playtested. There is no lobby UI, matchmaking or internet relay; direct addressing uses Unreal's console.
-- Penetration assumes the convex graybox collision. Concave meshes, layered complex collision and unknown art assets need further treatment before replacing the primitives. Cosmetic holes do not open sight lines or destroy walls.
-- Audio wall counts are simple straight-line obstruction estimates, not room/portal acoustics. They preserve useful cues but do not simulate diffraction or reverberation. Sparse creaks are the only room tone.
-- The patrol stays within one room and never shoots. No noisy movable props, throwable distraction or tactical light switches yet. Doors interpolate hinge rotation rather than simulate forces, and can intersect a pawn during opening; closing has a simple occupancy guard.
-- Death is a simple falling silhouette, with no ragdoll or spectator flow. Remaining players can still walk during the five-second end state, but cannot fire/reload/interact.
-- Default Unreal engine plugins remain at engine defaults; only Python/editor scripting tooling was explicitly enabled. No external gameplay dependencies or third-party art/audio were added.
-
-## Next highest-value work
-
-1. Play with two humans using headphones. Tune floor gains, obstruction filtering, gunshot range/dynamic contrast and penetration lethality around the listening fantasy.
-2. Tighten sight alignment/feedback, doorway collision and the patrol route based on those sessions. Preserve silence and scarce ammo.
-3. Try one bumpable noisy prop or one thrown coin only after the duel is convincing. Keep map size and weapon count fixed.
+- The bot uses a small authored route graph and basic visibility/hearing decisions. It is playable opposition, not an advanced tactical AI. Its reactions and the sound balance need human headphone playtesting.
+- Visuals are a first imported-asset pass with simple animation states and procedural weapon motion. Audio remains synthesized. No finished character customization, reload hand animation or polished effects.
+- Networking is verified on loopback, not physical LAN, packet loss or internet latency. No lobby/matchmaking/relay.
+- Penetration depends on convex primitive wall collision. Holes are cosmetic; walls do not become transparent or destructible. Furniture meshes are not a general layered penetration simulation.
+- Acoustics use straight-line obstruction estimates rather than room portals/reverberation. Doors interpolate hinge rotation and may intersect a pawn while opening; closing has a simple occupancy guard.
+- No thrown distractions, movable noisy props or tactical light switches. Players can walk during the five-second round end but cannot fire/reload/interact.

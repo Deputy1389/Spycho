@@ -16,7 +16,7 @@ public:
     UPROPERTY(Replicated) bool bOpen = false;
     UPROPERTY(Replicated) bool bCareful = false;
     UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="Door") float OpenAngle = 95.f;
-    void Toggle(bool Carefully);
+    void Toggle(bool Carefully,AActor* Operator=nullptr);
     void Reset();
     virtual void Tick(float Dt) override;
     virtual void OnConstruction(const FTransform& Transform) override;

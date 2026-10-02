@@ -1,46 +1,48 @@
 # Spycho
 
-A small first-person duel: listen, infer, manipulate, commit. Opaque interior walls block sight but often let a lethal handgun shot through. Silence and scarce ammunition make each shot matter.
+A small first-person listening duel. Opaque, paper-thin partitions hide an opponent but let lethal handgun shots through. Find them by their footsteps before they find you.
 
-## Requirements and run
+## Play
 
-Unreal Engine **5.8.2**, Windows x64, Visual Studio C++ build tools and a Windows SDK. This machine has MSVC 14.51 and Windows SDK 10.0.26100. UE warns that MSVC 14.51 is newer than its preferred compiler.
+Open `Spycho.uproject` in Unreal Engine **5.8.2**, build SpychoEditor / Win64 / Development, then Play `/Game/Maps/House`. Or launch `Windows/Spycho.exe` from the packaged build; keep its adjacent folders intact.
 
-Open `Spycho.uproject`, build the **SpychoEditor / Development Editor / Win64** target, and press Play in the saved `/Game/Maps/House` map. All map, material, physical material and sound assets are checked in. Python plugins are editor-only and used for original asset generation; the game systems are C++.
-
-The single-player game creates a damageable patrol in the northeast study. Enter through the front door. Listen from the north end of the central hall, aim into the east partition away from its doorway, and commit to a shot. F5 resets practice. The patrol pauses between steps and never shoots; it is a test opponent.
+The 14 x 9 m house follows the supplied overhead reference: lounge at one end of a short central hall, study and den on one side, dining and bedroom on the other. You start in the lounge; the armed bot starts in the opposite den. Doors connect the hall and adjacent rooms. Listen, move quietly, and shoot through 2.5 cm partitions. The exterior masonry stops shots. Bullet marks remain until reset.
 
 | Input | Action |
 |---|---|
-| WASD / mouse | Grounded movement / look |
-| Hold Ctrl | Crouch |
-| Hold Shift | Careful walk; quieter door use |
-| Left mouse | Fire one shot |
-| Hold right mouse | Smoothly align iron sights |
+| WASD / mouse | Move / look |
+| Hold Shift | Sprint (4.2 m/s), loud footsteps |
+| Hold Alt | Slow walk (0.95 m/s), quieter footsteps and doors |
+| Hold Ctrl | Crouch (0.85 m/s) |
+| Left mouse | One shot per click |
+| Hold right mouse | Smooth iron-sight aiming |
 | R | Audible 2.1-second reload |
-| E | Open/close the door you face within 1.9 m |
-| F3 | Local developer overlay, bullet traces and noise sources |
-| F5 | Reset round (practice/listen host only) |
-| Tilde | Unreal console |
+| E | Open/close a door within 1.9 m |
+| F3 | Developer traces and noise overlay |
+| F5 | Reset solo/listen-host round |
+| Tilde | Console |
 
-Six rounds loaded, twelve in reserve, no pickups or crosshair. Direct hits and one ordinary drywall penetration are lethal. Wood spends more energy; masonry stops bullets. Wall marks persist until reset. Movement is 2.1 m/s, careful walk 1.05 m/s, crouch 0.85 m/s.
+Six rounds loaded, twelve spare. Mouse-up looks up. Valid shots give immediate sound/recoil; the pistol accepts one shot every **0.16 seconds**. A click during that cooldown queues one follow-up shot, including while aiming. Holding the trigger does not repeat. A lethal hit ends the round; both combatants respawn after five seconds. No crosshair, hit markers or enemy location UI.
 
-Mouse-up looks up. Valid trigger clicks play recoil and sound immediately, including on a remote client. The pistol can fire every 0.28 seconds; a click within 80 ms before it is ready is buffered once. Sights move with the weapon, recoil mostly returns, and the slide, muzzle flash and magazine provide shot/reload feedback.
+The bot patrols connected rooms, pauses, opens doors, and uses the same footsteps, ammunition, damage and penetration as a player. It reacts to visible opponents or a noisy estimated location and can shoot through a wall. Quiet movement reduces its hearing range; it does not track your live position through walls.
 
-## Two-player LAN / direct IP
+## Two-player direct IP
 
-Run two standalone game instances, or Play with **2 players / Play As Listen Server** and **Use Single Process disabled**. In a standalone instance, enter `Host` in the console to open the house as a listen server. On the other machine/instance enter `Join 192.168.1.10:7777` (replace the address; `Join 127.0.0.1:7777` locally). UDP 7777 must be reachable. The second human replaces the practice patrol and starts a fresh round. There is no matchmaking or online service.
+Enter `Host` in the console; in another instance/computer enter `Join HOST_IP:7777`, or `Join 127.0.0.1:7777` locally. UDP 7777 must be reachable. A second human replaces the bot and starts a fresh round. There is no lobby, matchmaking or relay; third connections are rejected.
 
-The server owns firing cadence, ammo, reload, damage and round reset. The owning client predicts only shot presentation; the accepted firing event reaches other players without repeating the owner's recoil or sound. Pawn movement uses Unreal character replication. Doors, positional sounds, impacts and death replicate. Five seconds after a kill, both players respawn with fresh ammunition and all marks are cleared. Third connections are rejected.
+The server owns cadence, ammo, reload, damage and reset. The owner predicts shot presentation; replicated acceptance does not repeat the owner's sound or recoil. Movement, doors, spatial sounds, wall evidence and death replicate.
 
 ## Build and verify
 
-Run `Tools/run.py build` with local Python 3; it discovers the installed engine from Epic's installation manifest or `SPYCHO_UE_ROOT`. `Tools/run.py test` runs the Unreal rule tests. `Tools/run.py smoke` launches the real saved map headlessly and checks lethal drywall penetration, solid masonry and round cleanup. `Tools/run.py play` opens a standalone practice instance.
+Python 3 helpers discover the installed engine or use `SPYCHO_UE_ROOT`. Windows requires Visual Studio C++ tools and a Windows SDK. This build uses MSVC 14.51 and SDK 10.0.26100; Unreal warns the compiler is newer than preferred.
 
-Physical materials in `Content/Surfaces` expose resistance per centimeter, entry cost, maximum thickness and floor noise gain. Ballistic defaults are on the character's penetration component. Original WAV tooling is `Tools/generate_audio.py`; optional map regeneration is `Tools/run.py assets` (replaces the graybox map). Do not regenerate casually after editing the map by hand.
+- `python Tools/run.py build`: editor build.
+- `python Tools/run.py test`: penetration/ammunition rule tests.
+- `python Tools/run.py smoke`: actual saved-map input, rapid ADS fire, reload, penetration, doors and reset.
+- `python Tools/run.py botsmoke`: bot roaming, quiet/noisy hearing, wall shots and visible combat.
+- `python Tools/network_smoke.py`: two separate game processes; accepts a packaged inner executable path.
+- `python Tools/run.py play`: standalone play.
+- `python Tools/package.py OUTPUT_DIRECTORY`: Windows Development package.
+- `python Tools/run.py assets`: reimport checked-in source art, rebuild House, and apply final materials/signs. **Replaces hand edits to House.**
 
-`Tools/network_smoke.py` runs two separate editor game processes on local port 17777, verifies a remote shot and replicated reset, then exits. Pass a packaged `Spycho/Binaries/Win64/Spycho.exe` path to test the cooked build instead. `Tools/package.py OUTPUT_DIRECTORY` builds/cooks a Development Windows package. The helpers set `COMSPEC` locally to `cmd.exe` because this machine's inherited shell setting points to a missing PowerShell executable.
-
-For the packaged prototype, launch the top-level `Windows/Spycho.exe`. No editor is required. Host and Join console commands and all controls above work there too.
-
-See `docs/CURRENT_STATUS.md` for actual verification and limitations.
+All map/material/audio/art assets are checked in. Editor Python is only for asset generation. Helpers set COMSPEC locally to cmd.exe. See [asset sources and licenses](docs/ASSETS.md), [verification and limitations](docs/CURRENT_STATUS.md). Original procedural audio tooling remains `Tools/generate_audio.py`.

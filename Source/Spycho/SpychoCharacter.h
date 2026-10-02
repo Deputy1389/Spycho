@@ -8,6 +8,8 @@ class USpychoHealth;
 class USpychoHandgun;
 class USpychoPenetration;
 class UPointLightComponent;
+class USkeletalMeshComponent;
+class UAnimSequence;
 
 UCLASS()
 class SPYCHO_API ASpychoCharacter : public ACharacter
@@ -19,20 +21,23 @@ public:
     UPROPERTY(VisibleAnywhere) TObjectPtr<USpychoHealth> Health;
     UPROPERTY(VisibleAnywhere) TObjectPtr<USpychoHandgun> Handgun;
     UPROPERTY(VisibleAnywhere) TObjectPtr<USpychoPenetration> Penetration;
-    UPROPERTY(VisibleAnywhere) TObjectPtr<UStaticMeshComponent> Body;
     UPROPERTY(VisibleAnywhere) TObjectPtr<UStaticMeshComponent> Gun;
     UPROPERTY(VisibleAnywhere) TObjectPtr<USceneComponent> WeaponRig;
-    UPROPERTY() TObjectPtr<UStaticMeshComponent> MagazineMesh;
     UPROPERTY() TObjectPtr<UPointLightComponent> MuzzleLight;
-    UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> Sights;
+    UPROPERTY() TObjectPtr<USkeletalMeshComponent> FirstPersonArms;
+    UPROPERTY() TObjectPtr<UStaticMeshComponent> WorldGun;
+    UPROPERTY() TObjectPtr<UAnimSequence> IdleAnimation;
+    UPROPERTY() TObjectPtr<UAnimSequence> WalkAnimation;
+    UPROPERTY() TObjectPtr<UAnimSequence> RunAnimation;
     UPROPERTY(Replicated) bool bTestOpponent = false;
     UPROPERTY(ReplicatedUsing=OnRep_Careful) bool bCareful = false;
-    TArray<FVector> Patrol;
+    UPROPERTY(ReplicatedUsing=OnRep_Careful) bool bSprinting = false;
     void Die();
     void ShotFeedback();
     void ConfirmShotFeedback(int32 PredictionKey);
     float GetAimAlpha() const { return AimAlpha; }
     int32 GetShotFeedbackCount() const { return ShotFeedbackCount; }
+    int32 GetFootstepCount() const { return FootstepCount; }
     virtual void Tick(float DeltaSeconds) override;
     virtual void SetupPlayerInputComponent(UInputComponent* Input) override;
     virtual void BeginPlay() override;
@@ -41,6 +46,7 @@ public:
     UFUNCTION(Server, Reliable) void ServerReload();
     UFUNCTION(Server, Reliable) void ServerInteract();
     UFUNCTION(Server, Reliable) void ServerCareful(bool Value);
+    UFUNCTION(Server, Reliable) void ServerSprint(bool Value);
     UFUNCTION() void OnRep_Careful();
 private:
     void Forward(float Value); void Right(float Value); void Turn(float Value); void Look(float Value);
@@ -48,10 +54,11 @@ private:
     void UpdateFootsteps(float DeltaSeconds);
     float DistanceSinceStep = 0.f;
     FVector LastStepPosition;
-    int32 PatrolIndex = 0;
-    float PauseUntil = 0.f;
     bool bDeathHandled = false;
     void UpdateWeaponPresentation(float DeltaSeconds);
+    void SprintDown(); void SprintUp();
+    int32 BodyAnimation = -1;
+    int32 FootstepCount = 0;
     float GunKick = 0.f;
     float GunRise = 0.f;
     float SlideKick = 0.f;

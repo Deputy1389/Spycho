@@ -19,7 +19,7 @@ void USpychoHandgun::Fire(FRotator Aim, int32 PredictionKey)
     {
         // Small arrival jitter must not discard a legitimate paced client click.
         // Debug/unpredicted spam does not get buffered; only one request can wait.
-        if (PredictionKey>0 && Wait<=.08 && !bBufferedShot)
+        if (PredictionKey>0 && Wait<=ShotInterval+.02 && !bBufferedShot)
         {
             bBufferedShot=true;
             FTimerDelegate D=FTimerDelegate::CreateUObject(this,&USpychoHandgun::FlushBufferedShot,Aim,PredictionKey);
@@ -28,6 +28,7 @@ void USpychoHandgun::Fire(FRotator Aim, int32 PredictionKey)
         return;
     }
     NextShot = GetWorld()->GetTimeSeconds() + ShotInterval; --Magazine;
+    GS->NotifyHearing(ESpychoNoise::Gunshot,C->GetActorLocation(),2.8f,C);
     // Origin is always server-owned. Clients supply only a bounded unit aim rotation.
     Aim.Pitch = FMath::Clamp(FRotator::NormalizeAxis(Aim.Pitch), -85.f, 85.f);
     Aim.Roll = 0.f;
@@ -50,6 +51,7 @@ void USpychoHandgun::Reload()
     auto* C = Cast<ASpychoCharacter>(GetOwner()); auto* GS = GetWorld()->GetGameState<ASpychoGameState>();
     if (!C || !C->HasAuthority() || C->Health->Health<=0.f || !GS || !GS->bRoundActive || bReloading || Magazine>=6 || Reserve<=0) return;
     bReloading = true; GS->Noise(ESpychoNoise::Reload, C->GetActorLocation(), 0.65f);
+    GS->NotifyHearing(ESpychoNoise::Reload,C->GetActorLocation(),.65f,C);
     GetWorld()->GetTimerManager().SetTimer(ReloadTimer, this, &USpychoHandgun::FinishReload, ReloadSeconds, false);
 }
 void USpychoHandgun::FinishReload()

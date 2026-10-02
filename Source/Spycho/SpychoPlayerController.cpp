@@ -37,7 +37,7 @@ void ASpychoPlayerController::SmokeFire()
 {
     if (auto* C=Cast<ASpychoCharacter>(GetPawn()))
     {
-        SetControlRotation((FVector(310,320,90)-C->Camera->GetComponentLocation()).Rotation());
+        SetControlRotation((FVector(350,260,90)-C->Camera->GetComponentLocation()).Rotation());
         InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::LeftMouseButton,IE_Pressed,1.f));
     }
     FTimerHandle T; GetWorldTimerManager().SetTimer(T,this,&ASpychoPlayerController::SmokeVerifyFirst,1.1f,false);

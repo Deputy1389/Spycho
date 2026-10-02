@@ -13,7 +13,7 @@ public:
     UPROPERTY(Replicated, BlueprintReadOnly) int32 Reserve = 12;
     UPROPERTY(Replicated, BlueprintReadOnly) bool bReloading = false;
     UPROPERTY(EditAnywhere) float ReloadSeconds = 2.1f;
-    UPROPERTY(EditAnywhere) float ShotInterval = 0.28f;
+    UPROPERTY(EditAnywhere) float ShotInterval = 0.16f;
     void Fire(FRotator Aim, int32 PredictionKey = 0);
     void Reload();
     void CancelReload();

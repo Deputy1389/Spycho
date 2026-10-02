@@ -26,5 +26,6 @@ public:
     UFUNCTION(NetMulticast, Reliable) void ShotDebug(FVector Start, FVector End, const FString& Detail);
     UFUNCTION() void OnRep_Round();
     bool IsDebug() const;
+    void NotifyHearing(ESpychoNoise Kind,FVector Location,float Gain,AActor* Source);
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const override;
 };

@@ -8,6 +8,8 @@
 #include "DrawDebugHelpers.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Camera/PlayerCameraManager.h"
+#include "SpychoHunterController.h"
+#include "EngineUtils.h"
 
 ASpychoGameState::ASpychoGameState()
 {
@@ -25,6 +27,11 @@ bool ASpychoGameState::IsDebug() const
 {
     auto* PC = Cast<ASpychoPlayerController>(GetWorld()->GetFirstPlayerController());
     return PC && PC->bDebug;
+}
+void ASpychoGameState::NotifyHearing(ESpychoNoise Kind,FVector Location,float Gain,AActor* Source)
+{
+    if (!HasAuthority()) return;
+    for (TActorIterator<ASpychoHunterController> It(GetWorld());It;++It) It->HearNoise(Kind,Location,Gain,Source);
 }
 void ASpychoGameState::Noise_Implementation(ESpychoNoise Kind, FVector Location, float Gain)
 {

@@ -24,6 +24,8 @@ private:
     void SmokeCheckMovement(); void SmokeBeginAmmo();
     void SmokeCheckTrigger();
     void SmokeBufferedTrigger(); void SmokeCheckBuffer();
+    void SmokeAimVolley(); void SmokeCheckVolley();
+    int32 SmokeVolleyClicks = 0;
     void RunSmokeTest();
     bool bSmokeAmmoPassed = false;
     bool bSmokeMovementPassed = false;
@@ -33,4 +35,6 @@ private:
     bool bNetworkSmokeStarted = false;
     bool bNetworkSmokePassed = true;
     void CapturePrototype();
+    void BeginBotSmoke(); void CheckBotRoam(); void CheckBotWallShot(); void CheckBotDuel();
+    bool bBotSmokePassed = true;
 };
