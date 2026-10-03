@@ -28,7 +28,7 @@ House layout, surface/room materials, physical materials, game code and asset/au
 
 ## Recorded audio — CC0
 
-- Kenney Impact Sounds: https://kenney.nl/assets/impact-sounds — selected wood/carpet/concrete footsteps (four each), wood/plank and metal impacts. Used for footsteps, door/latch, impacts and subtle building foley.
+- Kenney Impact Sounds: https://kenney.nl/assets/impact-sounds — selected wood/carpet/concrete footsteps (four each), wood/plank and metal impacts. Used for footsteps, door/latch, impacts, the coin landing and subtle building foley.
 - “Gunshots” by kurt: https://opengameart.org/content/gunshots — one transient trimmed from the supplied 22 Pistol.wav recording.
 - “Gun reload sounds” by SpringySpringo: https://opengameart.org/content/gun-reload-sounds — airsoft magazine/slide handling fitted to the 2.1-second reload.
 

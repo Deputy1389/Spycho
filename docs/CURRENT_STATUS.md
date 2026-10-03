@@ -1,33 +1,34 @@
-# Current status — playable v0.2.1
+# Current status — playable v0.3
 
-Unreal Engine **5.8.2**, Windows Development. Branch `codex/spycho-playable-v0.1`; review in draft PR #1, do not merge automatically.
+Unreal Engine 5.8.2, Windows Development. Branch codex/spycho-playable-v0.1; draft PR #1 remains unmerged.
 
-## Implemented
+## This milestone
 
-- Reference-inspired 14 x 9 m house: lounge, short hall, study/den and dining/bedroom. Seven sealed hinged doors, room labels, furnished rooms, parquet/plaster textures, soft ceiling lights and frosted window panels.
-- CC0 Kenney furnishings and ambientCG textures, plus Epic template pistol, first-person hands, animated Manny opponent and death ragdoll. See ASSETS.md for licenses.
-- Correct vertical mouse look, smooth aiming, immediate predicted shot feedback, 0.16-second semiautomatic cadence and one queued click throughout cooldown. Rapid clicks remain accepted during ADS. Six loaded/twelve reserve; audible 2.1-second reload.
-- Replicated sprint (Shift, 4.2 m/s), slow walk (Ctrl or Alt, 0.95 m/s) and normal walk (2.1 m/s). Footsteps follow distance traveled; sprint is loud, slow walk quiet.
-- Stealthier bot slow-walks at 0.75 m/s, waits 7–12 seconds initially and 8–15 seconds between room moves, opens doors and reloads. Hearing stops it to listen at cover; it does not choose a route toward the heard room. Quiet cues do not trigger wall shots. It reacts after a delay to visible opponents or a noisy estimated position; the estimate is frozen while the target is hidden. It can fire through walls. A second human removes the bot.
-- Opaque 2.5 cm interior walls block movement/sight and pass lethal handgun shots. Measured convex penetration consumes energy by actual thickness/material; masonry and unknown surfaces stop bullets. Persistent entry/exit evidence clears on round reset.
-- Positional footsteps, gunshots, reloads, doors, impacts and sparse creaks; simple wall obstruction filtering. Recorded CC0 footsteps (four variations per surface), pistol fire/reload and wood/metal foley replace synthesized placeholders; gunshot playback is reduced to avoid overloading the mix. No music, enemy UI or hit markers.
-- Authoritative two-player direct-IP/listen-server duel, replicated ammo/death/evidence/doors, automatic five-second reset. F5 host/solo reset; F3 optional developer overlay.
+All five requested passes are implemented: handling, sound clues, bot intentions, house presentation and deception/replay.
 
-## Verification
+- Deliberate movement retains 2.1 m/s normal, 0.95 m/s Ctrl/Alt slow and 4.2 m/s Shift sprint, with faster acceleration/braking. Correct mouse look, responsive 0.16-second semi-auto firing and one queued click while ADS remain.
+- First-person and opponent firing/reload animations, restrained sway/bob, recoil recovery, cosmetic ejected cases and a close-wall weapon lowering trace. Six rounds loaded, twelve spare; 2.1-second reload.
+- E door prompts, handles/insets, forgiving selection, swing away from the operator, pawn clearance checks and authoritative replicated panel angle. Closed panels seal side/header gaps and remain penetrable.
+- Shared acoustic obstruction rules for humans/bot: multiple walls and closed doors muffle and reduce volume; open door routes preserve more detail. Modest room-dependent reverb; recorded CC0 material footsteps (four each), pistol/reload and wood/metal foley. No music or enemy indicators.
+- Bot patrol/listen/investigate/hold/relocate intentions. Hearing gives an uncertain area estimate; it waits before checking it. Visible chest/head checks alone supply exact target updates. Loud gunfire can provoke one inferred wall shot, then relocation. New coins can redirect older clues; later bounces preserve the initial estimate. F3 alone shows bot intention/debug information.
+- Q tosses a server-owned bouncing coin. Two per round; up to three audible bounces. The bot hears the impact location, never a hidden thrower's position. Coins and their count replicate; reset removes old coins and restores two.
+- First to three / best of five, a small score display, alternating sides and three paired start layouts, five-second next rounds, decisive match finish and Enter rematch for solo/listen host. F5 restarts a match. Connecting/disconnecting a second human starts a fresh match.
+- Same 14 x 9 m reference layout. Warmer fixtures/table lamps, cool night windows, room accents, grain/weave on furnishings, skirting/crown, rugs, curtains and framed prints. Capsule sweeps verify all authored bot routes remain clear.
+- Existing opaque thin-wall lethal penetration, masonry protection, persistent entry/exit evidence, replicated authoritative damage/ammo/death/round flow and direct-IP two-human play remain.
 
-Editor build and two Unreal rule tests pass. Saved-map checks cover actual movement/mouse/stance inputs, immediate shot feedback, six rapid shots while ADS, timed reload, wall kill, masonry protection, doors, sounds and reset. Actual E opens a door during the countdown; traces at all closed door edges/headers block sight. Bot checks cover no knowledge/shots for a stationary hidden player, slow doorway traversal with actual footsteps, quiet-noise rejection, loud-noise investigation, an inferred wall shot and lethal visible combat. Two-process network checks cover one remote-client feedback event, wall kill, replicated ammo/evidence/door/death and automatic reset. Windows cooking/packaging and equivalent packaged checks are recorded in the deliverable VALIDATION.md. Rendered room, bot, ADS and plan views are inspected.
+## Verification / reproduction
 
-## Reproduce
+Editor build; three Unreal rule tests; saved-map firing/movement/door checks; bot silent-hearing/doorway/wall-shot/combat checks; and new polish checks run. Equivalent packaged checks, loopback host/client replication and captured rendered views are recorded in the deliverable VALIDATION.md.
 
-See README for controls, direct-IP setup and Tools/run.py build/test/smoke/botsmoke. Tools/network_smoke.py accepts the packaged inner executable. Tools/package.py creates a Windows build. Tools/run.py assets rebuilds from checked-in art sources and replaces House map edits.
+Use Tools/run.py build, test, smoke, botsmoke, polishsmoke or play. Tools/network_smoke.py accepts a packaged inner executable. Tools/package.py creates the Windows build. Tools/run.py assets reimports checked-in audio/art, regenerates House and applies materials; it replaces manual map edits. Optional audio processing needs numpy + soundfile. No runtime Python or new external engine plugins.
 
-## Known limits
+## Limits / next validation
 
-- The bot uses a small authored route graph and basic visibility/hearing decisions. It is playable opposition, not an advanced tactical AI. Its reactions and the sound balance need human headphone playtesting.
-- Visuals are a first imported-asset pass with simple animation states and procedural weapon motion. Audio uses licensed CC0 recordings. No finished character customization, reload hand animation or polished effects.
-- Networking is verified on loopback, not physical LAN, packet loss or internet latency. No lobby/matchmaking/relay.
-- Penetration depends on convex primitive wall collision. Holes are cosmetic; walls do not become transparent or destructible. Furniture meshes are not a general layered penetration simulation.
-- Acoustics use straight-line obstruction estimates rather than room portals/reverberation. Doors interpolate hinge rotation and may intersect a pawn while opening; closing has a simple occupancy guard.
-- No thrown distractions, movable noisy props or tactical light switches. Players can walk during the five-second round end but cannot fire/reload.
+- Human playtesting must assess responsiveness, tension, perceived direction and headphone balance. Automated passes establish behavior, not fun.
+- Furnishings remain lightweight low-poly CC0 meshes; mannequin opponent and template pistol use simple animation switching. No bespoke character art or skinned pistol slide/magazine animation. Reload hands are animated, but gun parts are static.
+- Acoustic propagation is an authored six-room open-door approximation plus straight-line blockers, not a physical sound simulation. Reverb has two short room profiles. Long sound filters are sampled when the event starts.
+- Bot decisions use a small route graph. It has imperfect hearing/sight, not advanced tactical navigation. Its visible fire is still highly lethal.
+- Penetration requires convex collision; holes are cosmetic. Walls do not become traversable. No noisy movable furniture or tactical light switches yet; the coin is the one distraction tool.
+- Networking is verified on one computer with two processes, not two-machine LAN, internet latency or packet loss. No lobby/matchmaking/relay.
 
-The door panel now fills its opening and overlaps the side/header trim. Interaction chooses a nearby visible door in a forgiving cone instead of requiring a precise center hit. Ctrl slow-walks with the camera at standing height; there is no crouch.
+Next: play several full matches on headphones, then a two-human LAN session. Tune audible range, investigation timing and recoil around observed failures before adding more features.

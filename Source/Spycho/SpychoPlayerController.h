@@ -16,7 +16,7 @@ public:
     UFUNCTION(Server,Reliable) void ServerSmokeResult(bool Passed, bool Final);
     UFUNCTION(Client,Reliable) void ClientSmokeFinish(bool Passed);
 private:
-    void ToggleDebug(); void Restart();
+    void ToggleDebug(); void Restart(); void Rematch();
     void SmokeFire(); void SmokeVerifyFirst(); void SmokeVerifyReset();
     int32 SmokeRound=0;
 };

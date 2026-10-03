@@ -1,5 +1,6 @@
 #include "Misc/AutomationTest.h"
 #include "SpychoRules.h"
+#include "SpychoAcoustics.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSpychoPenetrationRules,"Spycho.Rules.Penetration",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
@@ -27,6 +28,17 @@ bool FSpychoAmmoRules::RunTest(const FString&)
     TestFalse(TEXT("reload locks fire"),SpychoRules::CanFire(6,true,true,true));
     TestFalse(TEXT("death locks fire"),SpychoRules::CanFire(6,false,false,true));
     TestFalse(TEXT("round end locks fire"),SpychoRules::CanFire(6,false,true,false));
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSpychoSoundRules,"Spycho.Rules.AcousticClues",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FSpychoSoundRules::RunTest(const FString&)
+{
+    FSpychoAcousticPath Same,Thin,Multiple,Closed,Open;
+    Thin.Walls=1;Multiple.Walls=3;Closed.Walls=1;Closed.bClosedDoor=true;Open.Walls=1;Open.bOpenRoute=true;
+    TestTrue(TEXT("one wall quieter than same room"),Thin.Transmission()<Same.Transmission());
+    TestTrue(TEXT("several walls quieter and more muffled"),Multiple.Transmission()<Thin.Transmission()&&Multiple.Cutoff()<Thin.Cutoff());
+    TestTrue(TEXT("open route preserves more audible detail"),Open.Transmission()>Closed.Transmission()&&Open.Cutoff()>Closed.Cutoff());
+    TestEqual(TEXT("outside not a room"),SpychoAcoustics::RoomAt(FVector(900,0,0)),-1);
     return true;
 }
 #endif

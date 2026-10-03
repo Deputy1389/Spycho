@@ -13,6 +13,11 @@ for name,color in palette.items():
         edit.connect_material_property(rough,'',u.MaterialProperty.MP_ROUGHNESS);edit.recompile_material(m)
         u.EditorAssetLibrary.save_loaded_asset(m,only_if_is_dirty=False)
     materials[name]=m
+# Furnishings use the house's checked-in CC0 grain/weave textures rather than
+# uniform colored blocks. The low-poly meshes remain intentionally lightweight.
+if u.load_asset('/Game/Materials/OakParquet'):
+    materials['wood']=u.load_asset('/Game/Materials/OakParquet')
+    materials['carpet']=u.load_asset('/Game/Materials/CarpetWeave')
 for path in u.EditorAssetLibrary.list_assets('/Game/ThirdParty/Furniture',recursive=False):
     mesh=u.load_asset(path)
     if not isinstance(mesh,u.StaticMesh):continue

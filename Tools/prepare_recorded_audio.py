@@ -37,3 +37,4 @@ def layer(parts,duration):
 write('Door',layer([('impactWood_light_000.ogg',0,1),('impactMetal_light_000.ogg',.58,.4)],.95),.55)
 write('Impact',trim(read('impactPlank_medium_000.ogg')),.5)
 write('Creak',layer([('impactWood_light_001.ogg',0,.5),('impactWood_light_000.ogg',.23,.35)],.75),.3)
+write('Coin',trim(read('impactMetal_light_000.ogg')),.65)

@@ -15,6 +15,7 @@ public:
     virtual void Logout(AController* Exiting) override;
     void OnDeath(ASpychoCharacter* Victim);
     void ResetRound();
+    void StartMatch();
     void NetworkSmokeResult(bool Passed, bool Final);
 private:
     FTimerHandle ResetTimer;
@@ -39,4 +40,8 @@ private:
     void CapturePrototype();
     void BeginBotSmoke(); void CheckBotSilence(); void CheckBotRoam(); void CheckBotWallShot(); void CheckBotDuel();
     bool bBotSmokePassed = true;
+    void BeginPolishSmoke();void CheckPolishCoin();void CheckPolishSearch();void CheckPolishMatch();
+    void CheckPolishRematch();
+    bool bPolishPassed=true;
+    FVector PolishEstimate;
 };

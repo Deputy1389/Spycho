@@ -15,13 +15,15 @@ void ASpychoPlayerController::SetupInputComponent()
     Super::SetupInputComponent();
     InputComponent->BindAction("Debug",IE_Pressed,this,&ASpychoPlayerController::ToggleDebug);
     InputComponent->BindAction("Restart",IE_Pressed,this,&ASpychoPlayerController::Restart);
+    InputComponent->BindKey(EKeys::Enter,IE_Pressed,this,&ASpychoPlayerController::Rematch);
 }
 void ASpychoPlayerController::ToggleDebug() { bDebug=!bDebug; }
 void ASpychoPlayerController::Restart() { ServerRestart(); }
+void ASpychoPlayerController::Rematch() { if (auto* GS=GetWorld()->GetGameState<ASpychoGameState>()) if (GS->bMatchOver) ServerRestart(); }
 void ASpychoPlayerController::ServerRestart_Implementation()
 {
     // Local/listen host alone controls the developer reset.
-    if (IsLocalController()) if (auto* GM=GetWorld()->GetAuthGameMode<ASpychoGameMode>()) GM->ResetRound();
+    if (IsLocalController()) if (auto* GM=GetWorld()->GetAuthGameMode<ASpychoGameMode>()) GM->StartMatch();
 }
 void ASpychoPlayerController::Host() { UGameplayStatics::OpenLevel(this,TEXT("/Game/Maps/House"),true,TEXT("listen")); }
 void ASpychoPlayerController::Join(const FString& Address)
@@ -38,6 +40,7 @@ void ASpychoPlayerController::SmokeFire()
     if (auto* C=Cast<ASpychoCharacter>(GetPawn()))
     {
         SetControlRotation((FVector(350,260,90)-C->Camera->GetComponentLocation()).Rotation());
+        InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::Q,IE_Pressed,1.f));
         InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::LeftMouseButton,IE_Pressed,1.f));
     }
     FTimerHandle T; GetWorldTimerManager().SetTimer(T,this,&ASpychoPlayerController::SmokeVerifyFirst,1.1f,false);
@@ -49,7 +52,7 @@ void ASpychoPlayerController::SmokeVerifyFirst()
     for (TActorIterator<ASpychoCharacter> It(GetWorld());It;++It) { Dead+=It->Health->Health<=0.f; Bots+=It->bTestOpponent; }
     for (TActorIterator<ASpychoDoor> It(GetWorld());It;++It) Open+=It->bOpen;
     InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::LeftMouseButton,IE_Released,0.f));
-    bool Passed=GS&&C&&!GS->bRoundActive&&C->Handgun->Magazine==5&&C->GetShotFeedbackCount()==1&&GS->Evidence.Num()>=2&&Dead==1&&Bots==0&&Open>0;
+    bool Passed=GS&&C&&!GS->bRoundActive&&C->Handgun->Magazine==5&&C->GetShotFeedbackCount()==1&&GS->Evidence.Num()>=2&&Dead==1&&Bots==0&&Open>0&&C->Coins==1&&GS->ScoreB==1;
     UE_LOG(LogTemp,Display,TEXT("SPYCHO_NET_CLIENT %s replicated wall kill/ammo/marks/round/door (dead=%d bots=%d open=%d)"),Passed?TEXT("PASS"):TEXT("FAIL"),Dead,Bots,Open);
     ServerSmokeResult(Passed,false);
     FTimerHandle T; GetWorldTimerManager().SetTimer(T,this,&ASpychoPlayerController::SmokeVerifyReset,5.2f,false);
@@ -58,7 +61,7 @@ void ASpychoPlayerController::SmokeVerifyReset()
 {
     auto* GS=GetWorld()->GetGameState<ASpychoGameState>(); auto* C=Cast<ASpychoCharacter>(GetPawn());
     int32 Open=0; for (TActorIterator<ASpychoDoor> It(GetWorld());It;++It) Open+=It->bOpen;
-    bool Passed=GS&&C&&GS->Round>SmokeRound&&GS->bRoundActive&&GS->Evidence.IsEmpty()&&C->Health->Health==100.f&&C->Handgun->Magazine==6&&C->Handgun->Reserve==12&&Open==0;
+    bool Passed=GS&&C&&GS->Round>SmokeRound&&GS->bRoundActive&&GS->Evidence.IsEmpty()&&C->Health->Health==100.f&&C->Handgun->Magazine==6&&C->Handgun->Reserve==12&&Open==0&&C->Coins==2&&GS->ScoreB==1;
     UE_LOG(LogTemp,Display,TEXT("SPYCHO_NET_CLIENT %s replicated automatic reset"),Passed?TEXT("PASS"):TEXT("FAIL"));
     ServerSmokeResult(Passed,true);
 }

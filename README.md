@@ -6,7 +6,7 @@ A small first-person listening duel. Opaque, paper-thin partitions hide an oppon
 
 Open `Spycho.uproject` in Unreal Engine **5.8.2**, build SpychoEditor / Win64 / Development, then Play `/Game/Maps/House`. Or launch `Windows/Spycho.exe` from the packaged build; keep its adjacent folders intact.
 
-The 14 x 9 m house follows the supplied overhead reference: lounge at one end of a short central hall, study and den on one side, dining and bedroom on the other. You start in the lounge; the armed bot starts in the opposite den. Doors connect the hall and adjacent rooms. Listen, move quietly, and shoot through 2.5 cm partitions. The exterior masonry stops shots. Bullet marks remain until reset.
+The 14 x 9 m house follows the supplied overhead reference: lounge at one end of a short central hall, study and den on one side, dining and bedroom on the other. The first round starts in the lounge and opposite den; subsequent rounds swap sides and rotate through three paired starts. Doors connect the hall and adjacent rooms. Listen, move quietly, and shoot through 2.5 cm partitions. The exterior masonry stops shots. Bullet marks remain until reset.
 
 | Input | Action |
 |---|---|
@@ -18,16 +18,20 @@ The 14 x 9 m house follows the supplied overhead reference: lounge at one end of
 | R | Audible 2.1-second reload |
 | E | Open/close a door within 2.4 m |
 | F3 | Developer traces and noise overlay |
-| F5 | Reset solo/listen-host round |
+| Q | Toss a coin (two per round) |
+| Enter | Rematch after a match ends (solo/listen host) |
+| F5 | Restart solo/listen-host match |
 | Tilde | Console |
 
-Six rounds loaded, twelve spare. Mouse-up looks up. Valid shots give immediate sound/recoil; the pistol accepts one shot every **0.16 seconds**. A click during that cooldown queues one follow-up shot, including while aiming. Holding the trigger does not repeat. A lethal hit ends the round; both combatants respawn after five seconds. No crosshair, hit markers or enemy location UI.
+Six rounds loaded, twelve spare. Mouse-up looks up. Valid shots give immediate sound/recoil; the pistol accepts one shot every **0.16 seconds**. A click during that cooldown queues one follow-up shot, including while aiming. Holding the trigger does not repeat. A lethal hit ends the round; the winner earns one point and both combatants respawn after five seconds. First to three wins a best-of-five match; Enter starts a rematch. No crosshair, hit markers or enemy location UI.
 
-The bot slow-walks at 0.75 m/s, waits 7–12 seconds at the start and 8–15 seconds between room moves, and opens doors, and uses the same footsteps, ammunition, damage and penetration as a player. It listens from cover after noises. Loud gunfire/sprinting can prompt one delayed wall shot; quiet sounds do not prompt blind fire or select a room to rush. Visible combat needs clear chest and head sight lines. A stationary hidden player supplies no location information. Quiet movement reduces its hearing range; it does not track your live position through walls.
+The bot slow-walks, listens, cautiously investigates sound areas, pauses at doorways and relocates after inferred gunfire. It uses the same ammunition, footsteps, damage and penetration as a player. It only updates exact target position when both chest and head are visible. Hidden targets supply no live location updates. Gunfire can prompt one delayed, uncertain wall shot; other clues prompt investigation. A coin can distract it toward the landing rather than the thrower.
+
+Movement starts/stops more promptly without increasing top speeds. Pistol fire/reload animations, restrained sway/recoil, shell ejection and automatic lowering near walls improve handling. Doors have visible handles/insets, swing away from the operator, pause for occupied space, and show a small E prompt. Open door routes preserve more sound detail; closed doors and successive walls reduce volume/high frequencies. Short room-dependent reverb is restrained. The compact house has warm lamps, cool night windows, textured upholstery/wood, accent rooms, rugs, trim, curtains and framed prints.
 
 ## Two-player direct IP
 
-Enter `Host` in the console; in another instance/computer enter `Join HOST_IP:7777`, or `Join 127.0.0.1:7777` locally. UDP 7777 must be reachable. A second human replaces the bot and starts a fresh round. There is no lobby, matchmaking or relay; third connections are rejected.
+Enter `Host` in the console; in another instance/computer enter `Join HOST_IP:7777`, or `Join 127.0.0.1:7777` locally. UDP 7777 must be reachable. A second human replaces the bot and starts a fresh match. There is no lobby, matchmaking or relay; third connections are rejected.
 
 The server owns cadence, ammo, reload, damage and reset. The owner predicts shot presentation; replicated acceptance does not repeat the owner's sound or recoil. Movement, doors, spatial sounds, wall evidence and death replicate.
 
@@ -36,9 +40,10 @@ The server owns cadence, ammo, reload, damage and reset. The owner predicts shot
 Python 3 helpers discover the installed engine or use `SPYCHO_UE_ROOT`. Windows requires Visual Studio C++ tools and a Windows SDK. This build uses MSVC 14.51 and SDK 10.0.26100; Unreal warns the compiler is newer than preferred.
 
 - `python Tools/run.py build`: editor build.
-- `python Tools/run.py test`: penetration/ammunition rule tests.
+- `python Tools/run.py test`: penetration/ammunition/acoustic rule tests.
 - `python Tools/run.py smoke`: actual saved-map input, rapid ADS fire, reload, penetration, doors and reset.
 - `python Tools/run.py botsmoke`: bot roaming, quiet/noisy hearing, wall shots and visible combat.
+- `python Tools/run.py polishsmoke`: real coin bounce/deception, room-route clearance, door acoustics, weapon lowering and best-of-five/rematch checks.
 - `python Tools/network_smoke.py`: two separate game processes; accepts a packaged inner executable path.
 - `python Tools/run.py play`: standalone play.
 - `python Tools/package.py OUTPUT_DIRECTORY`: Windows Development package.

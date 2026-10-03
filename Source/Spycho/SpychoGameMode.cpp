@@ -4,6 +4,8 @@
 #include "SpychoPlayerController.h"
 #include "SpychoHUD.h"
 #include "SpychoDoor.h"
+#include "SpychoDistraction.h"
+#include "SpychoAcoustics.h"
 #include "SpychoHealth.h"
 #include "SpychoHandgun.h"
 #include "SpychoPenetration.h"
@@ -31,6 +33,7 @@ void ASpychoGameMode::BeginPlay()
     if (FParse::Param(FCommandLine::Get(),TEXT("SpychoSmoke"))) { FTimerHandle T; GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::BeginSmokeTest,4.f,false); }
     if (FParse::Param(FCommandLine::Get(),TEXT("SpychoCapture"))) { FTimerHandle T; GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::CapturePrototype,5.f,false); }
     if (FParse::Param(FCommandLine::Get(),TEXT("SpychoBotSmoke"))) { FTimerHandle T; GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::BeginBotSmoke,4.f,false); }
+    if (FParse::Param(FCommandLine::Get(),TEXT("SpychoPolishSmoke"))) { FTimerHandle T;GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::BeginPolishSmoke,4.f,false); }
 }
 void ASpychoGameMode::CapturePrototype()
 {
@@ -47,9 +50,14 @@ void ASpychoGameMode::CapturePrototype()
     bool BotCapture=FParse::Param(FCommandLine::Get(),TEXT("SpychoCaptureBot"));
     bool LoungeCapture=FParse::Param(FCommandLine::Get(),TEXT("SpychoCaptureLounge"));
     bool DoorCapture=FParse::Param(FCommandLine::Get(),TEXT("SpychoCaptureDoor"));
+    bool ReloadCapture=FParse::Param(FCommandLine::Get(),TEXT("SpychoCaptureReload"));
     PC->GetPawn()->SetActorLocation(LoungeCapture?FVector(-420,-100,90):(BotCapture?FVector(350,130,90):FVector(-220,0,90)));
     PC->SetControlRotation(FRotator(0,LoungeCapture?112.f:(BotCapture?90.f:0.f),0));
     if (DoorCapture) { PC->GetPawn()->SetActorLocation(FVector(-440,0,90));PC->SetControlRotation(FRotator::ZeroRotator); }
+    if (ReloadCapture)
+    {
+        auto* C=Cast<ASpychoCharacter>(PC->GetPawn());C->Handgun->Magazine=3;C->ServerReload();
+    }
     if (BotCapture) for (TActorIterator<ASpychoCharacter> It(GetWorld());It;++It) if (It->bTestOpponent)
     {
         It->SetActorLocation(FVector(350,310,90));It->SetActorRotation(FRotator(0,-90,0));if (It->GetController()) It->GetController()->SetControlRotation(FRotator(0,-90,0));
@@ -64,9 +72,9 @@ void ASpychoGameMode::CapturePrototype()
     }
     FString Directory=FPaths::ProjectSavedDir()/TEXT("Screenshots"); IFileManager::Get().MakeDirectory(*Directory,true);
     FTimerHandle T;
-    GetWorldTimerManager().SetTimer(T,FTimerDelegate::CreateLambda([this,Directory,AimCapture,PlanCapture,BotCapture,LoungeCapture,DoorCapture]()
+    GetWorldTimerManager().SetTimer(T,FTimerDelegate::CreateLambda([this,Directory,AimCapture,PlanCapture,BotCapture,LoungeCapture,DoorCapture,ReloadCapture]()
     {
-        const TCHAR* Name=DoorCapture?TEXT("SpychoDoor.png"):(PlanCapture?TEXT("SpychoPlan.png"):(BotCapture?TEXT("SpychoBot.png"):(LoungeCapture?TEXT("SpychoLounge.png"):(AimCapture?TEXT("SpychoAim.png"):TEXT("Spycho.png")))));
+        const TCHAR* Name=ReloadCapture?TEXT("SpychoReload.png"):(DoorCapture?TEXT("SpychoDoor.png"):(PlanCapture?TEXT("SpychoPlan.png"):(BotCapture?TEXT("SpychoBot.png"):(LoungeCapture?TEXT("SpychoLounge.png"):(AimCapture?TEXT("SpychoAim.png"):TEXT("Spycho.png"))))));
         FScreenshotRequest::RequestScreenshot(Directory/Name,false,false);
         FTimerHandle Exit; GetWorldTimerManager().SetTimer(Exit,FTimerDelegate::CreateLambda([](){FPlatformMisc::RequestExitWithStatus(false,0);}),2.f,false);
     }),1.f,false);
@@ -77,7 +85,7 @@ void ASpychoGameMode::PreLogin(const FString& O,const FString& A,const FUniqueNe
 }
 void ASpychoGameMode::PostLogin(APlayerController* PC)
 {
-    Super::PostLogin(PC); GetWorldTimerManager().SetTimer(ResetTimer,this,&ASpychoGameMode::ResetRound,0.75f,false);
+    Super::PostLogin(PC); GetWorldTimerManager().SetTimer(ResetTimer,this,&ASpychoGameMode::StartMatch,0.75f,false);
     if (GetNumPlayers()==2 && !bNetworkSmokeStarted && FParse::Param(FCommandLine::Get(),TEXT("SpychoNetSmoke")))
     {
         bNetworkSmokeStarted=true; FTimerHandle T; GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::BeginNetworkSmoke,3.f,false);
@@ -108,7 +116,7 @@ void ASpychoGameMode::NetworkSmokeResult(bool Passed,bool Final)
 }
 void ASpychoGameMode::Logout(AController* Exiting)
 {
-    Super::Logout(Exiting); GetWorldTimerManager().SetTimer(ResetTimer,this,&ASpychoGameMode::ResetRound,1.f,false);
+    Super::Logout(Exiting); GetWorldTimerManager().SetTimer(ResetTimer,this,&ASpychoGameMode::StartMatch,1.f,false);
 }
 void ASpychoGameMode::ResetRound()
 {
@@ -119,29 +127,46 @@ void ASpychoGameMode::ResetRound()
         It->Destroy();
     }
     for (TActorIterator<ASpychoDoor> It(GetWorld()); It; ++It) It->Reset();
+    for (TActorIterator<ASpychoDistraction> It(GetWorld());It;++It) It->Destroy();
     auto* GS=GetGameState<ASpychoGameState>(); if (!GS) return;
-    ++GS->Round; GS->bRoundActive=true; GS->RoundMessage=GetNumPlayers()>1?TEXT("Duel"):TEXT("Hunter bot"); GS->OnRep_Round(); GS->ForceNetUpdate();
+    ++GS->Round; GS->bRoundActive=true; GS->RoundMessage=TEXT("First to three. Listen carefully."); GS->OnRep_Round(); GS->ForceNetUpdate();
+    const FVector Starts[][2]={{{-560,-300,90},{530,300,90}},{{-190,160,90},{530,-130,90}},{{-230,-160,90},{340,360,90}}};
+    int32 MatchRound=GS->ScoreA+GS->ScoreB;int32 Pair=(MatchRound/2)%3;
+    auto SpawnFor=[&](int32 Slot)
+    {
+        FVector P=Starts[Pair][(Slot+MatchRound)%2];
+        return FTransform((FVector(0,0,90)-P).Rotation(),P);
+    };
     int32 Index=0;
     for (FConstPlayerControllerIterator It=GetWorld()->GetPlayerControllerIterator(); It; ++It)
     {
         APlayerController* PC=It->Get(); if (!PC) continue;
-        FTransform Spawn(Index==0?FRotator(0,49,0):FRotator(0,-145,0),Index==0?FVector(-560,-300,90):FVector(530,300,90));
-        RestartPlayerAtTransform(PC,Spawn); ++Index;
+        RestartPlayerAtTransform(PC,SpawnFor(Index));
+        if (auto* C=Cast<ASpychoCharacter>(PC->GetPawn())) C->DuelSlot=Index;
+        ++Index;
     }
     if (Index==1)
     {
         FActorSpawnParameters Params; Params.SpawnCollisionHandlingOverride=ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-        auto* Bot=GetWorld()->SpawnActor<ASpychoCharacter>(FVector(530,300,90),FRotator(0,-145,0),Params);Bot->bTestOpponent=true;
+        auto* Bot=GetWorld()->SpawnActor<ASpychoCharacter>(ASpychoCharacter::StaticClass(),SpawnFor(1),Params);Bot->bTestOpponent=true;Bot->DuelSlot=1;
         auto* Hunter=GetWorld()->SpawnActor<ASpychoHunterController>();Hunter->Possess(Bot);
-        if (FParse::Param(FCommandLine::Get(),TEXT("SpychoSmoke")) || FParse::Param(FCommandLine::Get(),TEXT("SpychoCapture")) || FParse::Param(FCommandLine::Get(),TEXT("SpychoBotSmoke"))) Hunter->SetActorTickEnabled(false);
+        if (FParse::Param(FCommandLine::Get(),TEXT("SpychoSmoke")) || FParse::Param(FCommandLine::Get(),TEXT("SpychoCapture")) || FParse::Param(FCommandLine::Get(),TEXT("SpychoBotSmoke")) || FParse::Param(FCommandLine::Get(),TEXT("SpychoPolishSmoke"))) Hunter->SetActorTickEnabled(false);
     }
+}
+void ASpychoGameMode::StartMatch()
+{
+    if (auto* GS=GetGameState<ASpychoGameState>()) { GS->ScoreA=0;GS->ScoreB=0;GS->bMatchOver=false; }
+    ResetRound();
 }
 void ASpychoGameMode::OnDeath(ASpychoCharacter* Victim)
 {
     auto* GS=GetGameState<ASpychoGameState>(); if (!GS || !GS->bRoundActive) return;
-    GS->bRoundActive=false;GS->RoundMessage=GetNumPlayers()>1?TEXT("Duel ended. New round in 5 seconds."):(Victim->bTestOpponent?TEXT("Bot down. New duel in 5 seconds."):TEXT("You were shot. New duel in 5 seconds."));GS->ForceNetUpdate();
+    GS->bRoundActive=false;
+    if (Victim->DuelSlot==1) ++GS->ScoreA;else ++GS->ScoreB;
+    GS->bMatchOver=GS->ScoreA>=3||GS->ScoreB>=3;
+    GS->RoundMessage=GS->bMatchOver?TEXT("Match complete. Enter to rematch."):TEXT("Round over. Switching positions in 5 seconds.");GS->ForceNetUpdate();
     for (TActorIterator<ASpychoCharacter> It(GetWorld()); It; ++It) It->Handgun->CancelReload();
-    GetWorldTimerManager().SetTimer(ResetTimer,this,&ASpychoGameMode::ResetRound,5.f,false);
+    if (!GS->bMatchOver) GetWorldTimerManager().SetTimer(ResetTimer,this,&ASpychoGameMode::ResetRound,5.f,false);
 }
 void ASpychoGameMode::Creak()
 {
@@ -263,10 +288,10 @@ void ASpychoGameMode::RunSmokeTest()
     UE_LOG(LogTemp,Display,TEXT("SPYCHO_SMOKE %s masonry stops bullet HP=%.1f"),Blocked?TEXT("PASS"):TEXT("FAIL"),Bot->Health->Health);
     ResetRound(); bool Cleared=GS->Evidence.IsEmpty();
     UE_LOG(LogTemp,Display,TEXT("SPYCHO_SMOKE %s round reset clears evidence"),Cleared?TEXT("PASS"):TEXT("FAIL"));
-    bool AudioReady=GS->Sounds.Num()==8&&GS->FootstepVariants.Num()==9;
+    bool AudioReady=GS->Sounds.Num()==9&&GS->FootstepVariants.Num()==9;
     for (const auto& S : GS->Sounds) AudioReady &= S!=nullptr;
     for (const auto& S : GS->FootstepVariants) AudioReady &= S!=nullptr;
-    UE_LOG(LogTemp,Display,TEXT("SPYCHO_SMOKE %s all 17 recorded sound references exist"),AudioReady?TEXT("PASS"):TEXT("FAIL"));
+    UE_LOG(LogTemp,Display,TEXT("SPYCHO_SMOKE %s all 18 recorded sound references exist"),AudioReady?TEXT("PASS"):TEXT("FAIL"));
     bool DoorReady=false; for (TActorIterator<ASpychoDoor> It(GetWorld()); It; ++It) { It->Toggle(true); DoorReady=It->bOpen && It->bCareful; It->Reset(); break; }
     UE_LOG(LogTemp,Display,TEXT("SPYCHO_SMOKE %s door careful toggle/reset"),DoorReady?TEXT("PASS"):TEXT("FAIL"));
     bSmokeWorldPassed=Pass&&Blocked&&Cleared&&bSmokeAmmoPassed&&bSmokeMovementPassed&&AudioReady&&DoorReady;
@@ -303,6 +328,86 @@ void ASpychoGameMode::BeginBotSmoke()
     PC->GetPawn()->SetActorLocation(FVector(350,-260,90));
     for (TActorIterator<ASpychoHunterController> It(GetWorld());It;++It) It->SetActorTickEnabled(true);
     FTimerHandle T;GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::CheckBotSilence,3.f,false);
+}
+void ASpychoGameMode::BeginPolishSmoke()
+{
+    StartMatch();auto* PC=GetWorld()->GetFirstPlayerController();auto* C=Cast<ASpychoCharacter>(PC->GetPawn());
+    bool Assets=C->FireAnimation&&C->ReloadAnimation;
+    UE_LOG(LogTemp,Display,TEXT("SPYCHO_POLISH %s fire/reload animation references"),Assets?TEXT("PASS"):TEXT("FAIL"));bPolishPassed&=Assets;
+    C->SetActorLocation(FVector(-335,34,90));PC->SetControlRotation(FRotator::ZeroRotator);
+    auto* NearDoor=C->GetUsableDoor();bool DoorSafety=NearDoor!=nullptr;
+    if (NearDoor)
+    {
+        NearDoor->Toggle(false,C);DoorSafety&=NearDoor->bOpen&&NearDoor->SwingAngle<0;
+        C->SetActorLocation(NearDoor->GetActorTransform().TransformPosition(FVector(0,50,90)));
+        NearDoor->Toggle(false,C);DoorSafety&=NearDoor->bOpen;
+        C->SetActorLocation(FVector(-335,34,90));NearDoor->Toggle(false,C);DoorSafety&=!NearDoor->bOpen;NearDoor->Reset();
+    }
+    UE_LOG(LogTemp,Display,TEXT("SPYCHO_POLISH %s door opens away, guards occupied frame, closes beside operator"),DoorSafety?TEXT("PASS"):TEXT("FAIL"));bPolishPassed&=DoorSafety;
+    for (TActorIterator<ASpychoHunterController> It(GetWorld());It;++It)
+    {
+        bool Routes=It->ValidateRouteClearance();bPolishPassed&=Routes;
+        UE_LOG(LogTemp,Display,TEXT("SPYCHO_POLISH %s all room routes have capsule clearance"),Routes?TEXT("PASS"):TEXT("FAIL"));
+    }
+    FVector Source(470,260,154),Listener(470,0,154);
+    auto Closed=SpychoAcoustics::Probe(GetWorld(),Source,Listener,C);
+    for (TActorIterator<ASpychoDoor> It(GetWorld());It;++It)
+        if (FVector::Dist2D(It->GetActorLocation(),FVector(520.5f,85,0))<5.f)
+        { It->Toggle(true);It->Swing->SetRelativeRotation(FRotator(0,It->SwingAngle,0)); }
+    auto Open=SpychoAcoustics::Probe(GetWorld(),Source,Listener,C);
+    bool Acoustics=Open.Transmission()>Closed.Transmission()&&Open.Cutoff()>Closed.Cutoff()&&Closed.bClosedDoor;
+    UE_LOG(LogTemp,Display,TEXT("SPYCHO_POLISH %s closed/open door acoustic contrast %.2f/%.2f"),Acoustics?TEXT("PASS"):TEXT("FAIL"),Closed.Transmission(),Open.Transmission());bPolishPassed&=Acoustics;
+    for (TActorIterator<ASpychoDoor> It(GetWorld());It;++It) It->Reset();
+    C->SetActorLocation(FVector(-200,230,90));PC->SetControlRotation(FRotator(0,0,0));
+    for (TActorIterator<ASpychoHunterController> It(GetWorld());It;++It)
+    { It->GetPawn()->SetActorLocation(FVector(470,270,90));It->SetActorTickEnabled(false); }
+    PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::Q,IE_Pressed,1.f));
+    FTimerHandle T;GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::CheckPolishCoin,3.f,false);
+}
+void ASpychoGameMode::CheckPolishCoin()
+{
+    auto* PC=GetWorld()->GetFirstPlayerController();auto* C=Cast<ASpychoCharacter>(PC->GetPawn());
+    ASpychoDistraction* Coin=nullptr;for (TActorIterator<ASpychoDistraction> It(GetWorld());It;++It) Coin=*It;
+    ASpychoHunterController* Hunter=nullptr;for (TActorIterator<ASpychoHunterController> It(GetWorld());It;++It) Hunter=*It;
+    bool Landing=Coin&&Coin->AudibleBounces>0&&C->Coins==1&&Hunter&&Hunter->HeardEvents>0&&!Hunter->bWallShotAllowed
+        &&FVector::Dist2D(Hunter->LastKnown,Coin->FirstLanding)<100.f&&FVector::Dist2D(Hunter->LastKnown,C->GetActorLocation())>150.f;
+    UE_LOG(LogTemp,Display,TEXT("SPYCHO_POLISH %s Q coin bounces; bot hears landing, not thrower (coins %d bounces %d heard %d)"),Landing?TEXT("PASS"):TEXT("FAIL"),C->Coins,Coin?Coin->AudibleBounces:0,Hunter?Hunter->HeardEvents:0);bPolishPassed&=Landing;
+    if (Hunter) { PolishEstimate=Hunter->LastKnown;Hunter->MemoryUntil=0;Hunter->PauseUntil=0;Hunter->InvestigateAt=0;Hunter->SetActorTickEnabled(true); }
+    C->SetActorLocation(FVector(-600,-300,90));
+    FTimerHandle T;GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::CheckPolishSearch,1.f,false);
+}
+void ASpychoGameMode::CheckPolishSearch()
+{
+    bool Search=false;for (TActorIterator<ASpychoHunterController> It(GetWorld());It;++It)
+    {
+        Search=It->State==ESpychoHunterState::Investigate&&It->LastKnown.Equals(PolishEstimate,1.f)&&!It->bWallShotAllowed&&It->ShotsTaken==0;
+        It->SetActorTickEnabled(false);
+    }
+    UE_LOG(LogTemp,Display,TEXT("SPYCHO_POLISH %s uncertain investigation persists without tracking hidden player"),Search?TEXT("PASS"):TEXT("FAIL"));bPolishPassed&=Search;
+    auto* PC=GetWorld()->GetFirstPlayerController();PC->GetPawn()->SetActorLocation(FVector(-335,34,90));PC->SetControlRotation(FRotator::ZeroRotator);
+    FTimerHandle T;GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::CheckPolishMatch,.6f,false);
+}
+void ASpychoGameMode::CheckPolishMatch()
+{
+    auto* PC=GetWorld()->GetFirstPlayerController();auto* C=Cast<ASpychoCharacter>(PC->GetPawn());
+    bool Lowered=C->GetWallLowering()>.6f;
+    UE_LOG(LogTemp,Display,TEXT("SPYCHO_POLISH %s close wall lowers weapon %.2f"),Lowered?TEXT("PASS"):TEXT("FAIL"),C->GetWallLowering());bPolishPassed&=Lowered;
+    auto* GS=GetGameState<ASpychoGameState>();GS->ScoreA=0;GS->ScoreB=1;ResetRound();
+    C=Cast<ASpychoCharacter>(PC->GetPawn());bool Swapped=C->GetActorLocation().X>300&&C->Coins==2&&GS->ScoreB==1;
+    GS->ScoreA=2;GS->ScoreB=2;
+    for (TActorIterator<ASpychoCharacter> It(GetWorld());It;++It) if (It->bTestOpponent) { It->Health->Damage(1000.f);break; }
+    bool Won=GS->ScoreA==3&&GS->ScoreB==2&&GS->bMatchOver&&!GS->bRoundActive&&!GetWorldTimerManager().IsTimerActive(ResetTimer);
+    bPolishPassed&=Swapped&&Won;
+    UE_LOG(LogTemp,Display,TEXT("SPYCHO_POLISH %s alternating starts and decisive fifth round (swap %d won %d)"),Swapped&&Won?TEXT("PASS"):TEXT("FAIL"),Swapped,Won);
+    PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::Enter,IE_Pressed,1.f));
+    FTimerHandle T;GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::CheckPolishRematch,.15f,false);
+}
+void ASpychoGameMode::CheckPolishRematch()
+{
+    auto* GS=GetGameState<ASpychoGameState>();auto* PC=GetWorld()->GetFirstPlayerController();
+    bool Rematch=GS->ScoreA==0&&GS->ScoreB==0&&!GS->bMatchOver&&GS->bRoundActive&&Cast<ASpychoCharacter>(PC->GetPawn())->Coins==2;
+    UE_LOG(LogTemp,Display,TEXT("SPYCHO_POLISH %s Enter rematch resets match and replenishes coins"),Rematch?TEXT("PASS"):TEXT("FAIL"));bPolishPassed&=Rematch;
+    FPlatformMisc::RequestExitWithStatus(false,bPolishPassed?0:1);
 }
 void ASpychoGameMode::CheckBotSilence()
 {

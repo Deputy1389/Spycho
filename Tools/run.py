@@ -5,7 +5,7 @@ from pathlib import Path
 project=Path(__file__).resolve().parents[1]
 os.environ['COMSPEC']=str(Path(os.environ.get('SystemRoot','C:/Windows'))/'System32/cmd.exe')
 parser=argparse.ArgumentParser()
-parser.add_argument('action',choices=['build','test','smoke','botsmoke','assets','play','host','join'])
+parser.add_argument('action',choices=['build','test','smoke','botsmoke','polishsmoke','assets','play','host','join'])
 parser.add_argument('address',nargs='?',default='127.0.0.1:7777')
 args=parser.parse_args()
 if os.environ.get('SPYCHO_UE_ROOT'): engine=Path(os.environ['SPYCHO_UE_ROOT'])
@@ -20,12 +20,13 @@ if args.action=='build':
 else:
     executable='UnrealEditor.exe' if args.action in ['play','host','join'] else 'UnrealEditor-Cmd.exe'
     command=[str(engine/'Engine/Binaries/Win64'/executable),uproject]
-    if args.action in ['play','host','join','smoke','botsmoke']:
+    if args.action in ['play','host','join','smoke','botsmoke','polishsmoke']:
         command+=[args.address if args.action=='join' else '/Game/Maps/House'+('?listen' if args.action=='host' else ''),'-game']
     if args.action in ['play','host','join']: command+=['-windowed','-ResX=1280','-ResY=720','-nosplash']
     else: command+=['-unattended','-nosplash','-nullrhi','-stdout','-FullStdOutLogOutput']
     if args.action=='smoke': command+=['-SpychoSmoke']
     if args.action=='botsmoke':command+=['-SpychoBotSmoke']
+    if args.action=='polishsmoke':command+=['-SpychoPolishSmoke']
     if args.action=='test': command+=['-ExecCmds=Automation RunTests Spycho','-TestExit=Automation Test Queue Empty','-ReportExportPath='+str(project/'Saved/Automation')]
     if args.action=='assets':
         for script in ['import_recorded_audio.py','import_duel_assets.py','build_duel_house.py','finalize_duel_art.py']:

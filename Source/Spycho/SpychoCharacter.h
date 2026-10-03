@@ -10,6 +10,7 @@ class USpychoPenetration;
 class UPointLightComponent;
 class USkeletalMeshComponent;
 class UAnimSequence;
+class ASpychoDoor;
 
 UCLASS()
 class SPYCHO_API ASpychoCharacter : public ACharacter
@@ -29,6 +30,10 @@ public:
     UPROPERTY() TObjectPtr<UAnimSequence> IdleAnimation;
     UPROPERTY() TObjectPtr<UAnimSequence> WalkAnimation;
     UPROPERTY() TObjectPtr<UAnimSequence> RunAnimation;
+    UPROPERTY() TObjectPtr<UAnimSequence> FireAnimation;
+    UPROPERTY() TObjectPtr<UAnimSequence> ReloadAnimation;
+    UPROPERTY(Replicated) int32 Coins=2;
+    UPROPERTY(Replicated) int32 DuelSlot=0;
     UPROPERTY(Replicated) bool bTestOpponent = false;
     UPROPERTY(ReplicatedUsing=OnRep_Careful) bool bCareful = false;
     UPROPERTY(ReplicatedUsing=OnRep_Careful) bool bSprinting = false;
@@ -38,6 +43,8 @@ public:
     float GetAimAlpha() const { return AimAlpha; }
     int32 GetShotFeedbackCount() const { return ShotFeedbackCount; }
     int32 GetFootstepCount() const { return FootstepCount; }
+    ASpychoDoor* GetUsableDoor() const;
+    float GetWallLowering() const { return WallLowering; }
     virtual void Tick(float DeltaSeconds) override;
     virtual void SetupPlayerInputComponent(UInputComponent* Input) override;
     virtual void BeginPlay() override;
@@ -47,6 +54,7 @@ public:
     UFUNCTION(Server, Reliable) void ServerInteract();
     UFUNCTION(Server, Reliable) void ServerCareful(bool Value);
     UFUNCTION(Server, Reliable) void ServerSprint(bool Value);
+    UFUNCTION(Server, Reliable) void ServerThrowCoin(FRotator Aim);
     UFUNCTION() void OnRep_Careful();
 private:
     void Forward(float Value); void Right(float Value); void Turn(float Value); void Look(float Value);
@@ -76,4 +84,11 @@ private:
     int32 ShotFeedbackCount = 0;
     bool bAiming = false;
     void AimDown(); void AimUp();
+    void ThrowCoin();
+    float NextCoin=0.f;
+    float ArmShotUntil=0.f;
+    int32 ArmAnimation=-1;
+    float WallLowering=0.f;
+    float TurnSway=0.f;
+    FRotator PreviousAim;
 };
