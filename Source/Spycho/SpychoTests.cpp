@@ -38,7 +38,7 @@ bool FSpychoSoundRules::RunTest(const FString&)
     TestTrue(TEXT("one wall quieter than same room"),Thin.Transmission()<Same.Transmission());
     TestTrue(TEXT("several walls quieter and more muffled"),Multiple.Transmission()<Thin.Transmission()&&Multiple.Cutoff()<Thin.Cutoff());
     TestTrue(TEXT("open route preserves more audible detail"),Open.Transmission()>Closed.Transmission()&&Open.Cutoff()>Closed.Cutoff());
-    TestEqual(TEXT("outside not a room"),SpychoAcoustics::RoomAt(FVector(900,0,0)),-1);
+    TestEqual(TEXT("outside not a room"),SpychoAcoustics::RoomAt(FVector(2000,0,0)),-1);
     return true;
 }
 #endif

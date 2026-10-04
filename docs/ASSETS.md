@@ -4,7 +4,7 @@
 
 Source: https://kenney.nl/assets/furniture-kit
 
-17 selected models furnish the lounge, study, den, dining room and bedroom: sofas/chairs, desks/tables, bed, shelves, lamps, plants and computer props. Raw FBX files and the supplied license are retained in `Content/ThirdParty/Source`. Imported Unreal assets are in `Content/ThirdParty/Furniture`.
+17 selected models furnish the mansion’s library, foyer, salon and private rooms: sofas/chairs, desks/tables, bed, shelves, lamps, plants and computer props. Raw FBX files and the supplied license are retained in `Content/ThirdParty/Source`. Imported Unreal assets are in `Content/ThirdParty/Furniture`.
 
 Downloaded archive SHA-256: `e67652d0932cee41683f74711c03d3e192a2af9979ef8e6b237711f5482d46b0`.
 
@@ -24,7 +24,7 @@ Pistol mesh/material/texture assets and Manny mesh, physics, materials and selec
 
 ## Project-authored assets
 
-House layout, surface/room materials, physical materials, game code and asset/audio tooling were authored for this project. Screenshots are actual rendered game captures. One original image-generated aged landscape painting is included as wall art. Source: Content/Art/Source/HallLandscape.png; imported texture: /Game/Art/HallLandscape. Created with the built-in image-generation tool for this project; no third-party painting or artist signature is used. Tools/style_reference_house.py builds its material and layered frame geometry. ARTWORK.md in the deliverables records the full prompt. All sconces, trim, sash-window details and raised door panels are project-authored geometry.
+House layout, surface/room materials, physical materials, game code and asset/audio tooling were authored for this project. Screenshots are actual rendered game captures. One original image-generated aged landscape painting is included as wall art. Source: Content/Art/Source/HallLandscape.png; imported texture: /Game/Art/HallLandscape. Created with the built-in image-generation tool for this project; no third-party painting or artist signature is used. Tools/style_reference_house.py builds its material and layered frame geometry. ARTWORK.md in the deliverables records the full prompt. All sconces, trim, sash-window details and raised door panels are project-authored geometry. The mansion pass adds authored checkerstone floors, arches, panelling, piano/keyboard, chandeliers, fireplaces, screen/drapes, dressing mirror and ceiling coffers in Tools/build_mansion.py. Mansion materials reuse the listed CC0 plaster/wood sources; no additional third-party downloads were introduced.
 
 ## Recorded audio — CC0
 

@@ -7,14 +7,10 @@
 #include "Camera/CameraComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "EngineUtils.h"
+#include "SpychoHouseLayout.h"
 namespace
 {
-    const FVector Nodes[]={ {-550,-250,90},{-450,0,90},{-300,0,90},{-100,0,90},
-        {-70,85,90},{-70,230,90},{200,270,90},{470,270,90},{470,85,90},
-        {470,0,90},{470,-85,90},{470,-270,90},{200,-270,90},{-70,-270,90},
-        {-70,-85,90},{200,0,90} };
-    const FIntPoint Links[]={ {0,1},{1,2},{2,3},{3,4},{4,5},{5,6},{6,7},{7,8},{8,9},
-        {9,10},{10,11},{11,12},{12,13},{13,14},{14,3},{3,15},{15,9} };
+    using namespace SpychoHouse;
     int32 Closest(FVector Position)
     {
         int32 Best=0;float Distance=MAX_flt;
@@ -40,7 +36,7 @@ bool ASpychoHunterController::ValidateRouteClearance() const
         FHitResult H;
         if (GetWorld()->SweepSingleByChannel(H,Nodes[Link.X],Nodes[Link.Y],FQuat::Identity,ECC_Pawn,FCollisionShape::MakeCapsule(30.f,88.f),Q))
         {
-            Clear=false;UE_LOG(LogTemp,Warning,TEXT("SPYCHO_ROUTE blocked %d -> %d by %s"),Link.X,Link.Y,*GetNameSafe(H.GetActor()));
+            Clear=false;UE_LOG(LogTemp,Warning,TEXT("SPYCHO_ROUTE blocked %d -> %d by %s at %s"),Link.X,Link.Y,*GetNameSafe(H.GetActor()),H.GetActor()?*H.GetActor()->GetActorLocation().ToString():TEXT("unknown"));
         }
     }
     return Clear;
@@ -150,8 +146,8 @@ void ASpychoHunterController::Tick(float Dt)
     }
     if (Route.IsEmpty())
     {
-        const int32 Rooms[]={1,5,7,11,13};int32 Goal;
-        do { Goal=Rooms[FMath::RandRange(0,UE_ARRAY_COUNT(Rooms)-1)]; } while (Goal==Destination||Goal==Closest(C->GetActorLocation()));
+        const auto& PatrolGoals=SpychoHouse::RoomNodes;int32 Goal;
+        do { Goal=PatrolGoals[FMath::RandRange(0,UE_ARRAY_COUNT(PatrolGoals)-1)]; } while (Goal==Destination||Goal==Closest(C->GetActorLocation()));
         PlanRoute(Goal);State=ESpychoHunterState::Patrol;
     }
     if (Route.IsEmpty()) return;
@@ -160,7 +156,7 @@ void ASpychoHunterController::Tick(float Dt)
     {
         int32 Arrived=Route[0];Route.RemoveAt(0);
         if (Route.IsEmpty()) { State=ESpychoHunterState::Hold;PauseUntil=Now+FMath::FRandRange(4.f,8.f);HoldYaw=C->GetActorRotation().Yaw; }
-        else if (Arrived==2||Arrived==4||Arrived==8||Arrived==10||Arrived==14)
+        else if ([Arrived](){ for (int32 N:SpychoHouse::DoorNodes) if (N==Arrived) return true;return false; }())
         { PauseUntil=Now+FMath::FRandRange(.7f,1.3f);HoldYaw=(Nodes[Route[0]]-C->GetActorLocation()).Rotation().Yaw; }
         return;
     }

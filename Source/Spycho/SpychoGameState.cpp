@@ -14,6 +14,7 @@
 #include "Components/AudioComponent.h"
 #include "Sound/ReverbEffect.h"
 #include "SpychoOptions.h"
+#include "SpychoHouseLayout.h"
 
 ASpychoGameState::ASpychoGameState()
 {
@@ -46,7 +47,7 @@ void ASpychoGameState::Tick(float Dt)
     {
         ListenerRoom=Room;
         if (Room<0) UGameplayStatics::DeactivateReverbEffect(this,TEXT("House"));
-        else UGameplayStatics::ActivateReverbEffect(this,Room==0||Room==3||Room==5?SoftRoomReverb:HardRoomReverb,TEXT("House"),1.f,.45f,.3f);
+        else UGameplayStatics::ActivateReverbEffect(this,SpychoHouse::Rooms[Room].Soft?SoftRoomReverb:HardRoomReverb,TEXT("House"),1.f,.45f,.3f);
     }
     auto* Player=Cast<ASpychoPlayerController>(PC);auto* O=Player?Player->Options.Get():nullptr;
     for (int32 I=Voices.Num()-1;I>=0;--I)

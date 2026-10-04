@@ -29,6 +29,7 @@
 #include "Widgets/SWidget.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Components/AudioComponent.h"
+#include "SpychoHouseLayout.h"
 
 ASpychoGameMode::ASpychoGameMode()
 {
@@ -44,6 +45,7 @@ void ASpychoGameMode::BeginPlay()
     if (FParse::Param(FCommandLine::Get(),TEXT("SpychoBotSmoke"))) { FTimerHandle T; GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::BeginBotSmoke,4.f,false); }
     if (FParse::Param(FCommandLine::Get(),TEXT("SpychoPolishSmoke"))) { FTimerHandle T;GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::BeginPolishSmoke,4.f,false); }
     if (FParse::Param(FCommandLine::Get(),TEXT("SpychoExperienceSmoke"))) { FTimerHandle T;GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::BeginExperienceSmoke,4.f,false); }
+    if (FParse::Param(FCommandLine::Get(),TEXT("SpychoMansionSmoke"))) { FTimerHandle T;GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::BeginMansionSmoke,4.f,false); }
 }
 void ASpychoGameMode::CapturePrototype()
 {
@@ -82,23 +84,33 @@ void ASpychoGameMode::CapturePrototype()
     {
         for (TActorIterator<AActor> It(GetWorld());It;++It) if (It->ActorHasTag(TEXT("CaptureCeiling"))) It->SetActorHiddenInGame(true);
         auto* View=GetWorld()->SpawnActor<ACameraActor>(FVector(0,0,1600),FRotator(-90,90,0));auto* Lens=View->GetCameraComponent();
-        Lens->ProjectionMode=ECameraProjectionMode::Orthographic;Lens->OrthoWidth=1760.f;
+        Lens->ProjectionMode=ECameraProjectionMode::Orthographic;Lens->OrthoWidth=4600.f;
         Lens->PostProcessSettings.bOverride_AutoExposureBias=true;Lens->PostProcessSettings.AutoExposureBias=0.f;
         // A presentation-only fill makes the roofless layout legible. Normal
         // gameplay captures retain the authored dark interior lighting.
         auto* Fill=GetWorld()->SpawnActor<ADirectionalLight>(FVector(0,0,900),FRotator(-90,0,0));
         auto* Light=Cast<UDirectionalLightComponent>(Fill->GetLightComponent());
         Light->SetMobility(EComponentMobility::Movable);Light->SetIntensity(2.f);Light->SetCastShadows(false);
-        PC->SetViewTarget(View);if (PC->GetHUD()) PC->GetHUD()->bShowHUD=false;
+        View->SetActorLocation(FVector(300,0,2600));PC->SetViewTarget(View);if (PC->GetHUD()) PC->GetHUD()->bShowHUD=false;
     }
     bool MenuCapture=FParse::Param(FCommandLine::Get(),TEXT("SpychoCaptureMenu"));
+    const struct { const TCHAR* Flag;FVector Position;float Yaw; } MansionViews[]={
+        {TEXT("SpychoCaptureFoyer"),{890,-300,90},25},
+        {TEXT("SpychoCaptureLibrary"),{-70,600,90},145},
+        {TEXT("SpychoCaptureBallroom"),{400,770,90},20},
+        {TEXT("SpychoCaptureMusic"),{-70,-750,90},-145},
+        {TEXT("SpychoCaptureGallery"),{-950,-900,90},90},
+        {TEXT("SpychoCaptureSalon"),{920,-780,90},-145} };
+    FString MansionName;
+    for (const auto& V:MansionViews) if (FParse::Param(FCommandLine::Get(),V.Flag))
+    { PC->GetPawn()->SetActorLocation(V.Position);PC->SetControlRotation(FRotator(0,V.Yaw,0));MansionName=FString(V.Flag).Replace(TEXT("SpychoCapture"),TEXT("Spycho"))+TEXT(".png"); }
     if (MenuCapture) Cast<ASpychoPlayerController>(PC)->ShowMenu(true);
     FString Directory=FPaths::ProjectSavedDir()/TEXT("Screenshots"); IFileManager::Get().MakeDirectory(*Directory,true);
     FTimerHandle T;
-    GetWorldTimerManager().SetTimer(T,FTimerDelegate::CreateLambda([this,Directory,AimCapture,PlanCapture,BotCapture,LoungeCapture,DoorCapture,ReloadCapture,FireCapture,MenuCapture]()
+    GetWorldTimerManager().SetTimer(T,FTimerDelegate::CreateLambda([this,Directory,AimCapture,PlanCapture,BotCapture,LoungeCapture,DoorCapture,ReloadCapture,FireCapture,MenuCapture,MansionName]()
     {
         const TCHAR* Name=ReloadCapture?TEXT("SpychoReload.png"):(DoorCapture?TEXT("SpychoDoor.png"):(PlanCapture?TEXT("SpychoPlan.png"):(BotCapture?TEXT("SpychoBot.png"):(LoungeCapture?TEXT("SpychoLounge.png"):(AimCapture?TEXT("SpychoAim.png"):TEXT("Spycho.png"))))));
-        FScreenshotRequest::RequestScreenshot(Directory/(MenuCapture?TEXT("SpychoMenu.png"):(FireCapture?TEXT("SpychoFire.png"):Name)),MenuCapture,false);
+        FScreenshotRequest::RequestScreenshot(Directory/(!MansionName.IsEmpty()?MansionName:(MenuCapture?TEXT("SpychoMenu.png"):(FireCapture?TEXT("SpychoFire.png"):Name))),MenuCapture,false);
         FTimerHandle Exit; GetWorldTimerManager().SetTimer(Exit,FTimerDelegate::CreateLambda([](){FPlatformMisc::RequestExitWithStatus(false,0);}),2.f,false);
     }),1.f,false);
 }
@@ -155,10 +167,11 @@ void ASpychoGameMode::ResetRound()
     auto* GS=GetGameState<ASpychoGameState>(); if (!GS) return;
     ++GS->Round; GS->bRoundActive=true; GS->RoundMessage=TEXT("First to three. Listen carefully."); GS->OnRep_Round(); GS->ForceNetUpdate();
     bool Legacy=FParse::Param(FCommandLine::Get(),TEXT("SpychoSmoke"))||FParse::Param(FCommandLine::Get(),TEXT("SpychoBotSmoke"))||FParse::Param(FCommandLine::Get(),TEXT("SpychoPolishSmoke"))||FParse::Param(FCommandLine::Get(),TEXT("SpychoNetSmoke"));
-    GS->RoundStartsAt=GS->GetServerWorldTimeSeconds()+(Legacy?0.f:3.f);GS->RoundEndsAt=GS->RoundStartsAt+75.f;GS->RoundWinner=-1;GS->ResultReason.Empty();
-    GetWorldTimerManager().SetTimer(RoundTimer,this,&ASpychoGameMode::RoundTimeout,Legacy?75.f:78.f,false);
-    const FVector Starts[][2]={{{-560,-300,90},{530,300,90}},{{-190,160,90},{530,-130,90}},{{-230,-160,90},{340,360,90}}};
-    int32 MatchRound=PlayedRounds;int32 Pair=(MatchRound/2)%3;
+    GS->RoundStartsAt=GS->GetServerWorldTimeSeconds()+(Legacy?0.f:3.f);GS->RoundEndsAt=GS->RoundStartsAt+SpychoHouse::RoundSeconds;GS->RoundWinner=-1;GS->ResultReason.Empty();
+    GetWorldTimerManager().SetTimer(RoundTimer,this,&ASpychoGameMode::RoundTimeout,SpychoHouse::RoundSeconds+(Legacy?0.f:3.f),false);
+    bool Harness=Legacy||FParse::Param(FCommandLine::Get(),TEXT("SpychoExperienceSmoke"));
+    const FVector (*Starts)[2]=Harness?SpychoHouse::LegacyStarts:SpychoHouse::Starts;
+    int32 MatchRound=PlayedRounds;int32 Pair=(MatchRound/2)%(Harness?UE_ARRAY_COUNT(SpychoHouse::LegacyStarts):UE_ARRAY_COUNT(SpychoHouse::Starts));
     auto SpawnFor=[&](int32 Slot)
     {
         FVector P=Starts[Pair][(Slot+MatchRound)%2];
@@ -177,7 +190,7 @@ void ASpychoGameMode::ResetRound()
         FActorSpawnParameters Params; Params.SpawnCollisionHandlingOverride=ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
         auto* Bot=GetWorld()->SpawnActor<ASpychoCharacter>(ASpychoCharacter::StaticClass(),SpawnFor(1),Params);Bot->bTestOpponent=true;Bot->DuelSlot=1;
         auto* Hunter=GetWorld()->SpawnActor<ASpychoHunterController>();Hunter->Possess(Bot);
-        if (FParse::Param(FCommandLine::Get(),TEXT("SpychoSmoke")) || FParse::Param(FCommandLine::Get(),TEXT("SpychoCapture")) || FParse::Param(FCommandLine::Get(),TEXT("SpychoBotSmoke")) || FParse::Param(FCommandLine::Get(),TEXT("SpychoPolishSmoke"))) Hunter->SetActorTickEnabled(false);
+        if (FParse::Param(FCommandLine::Get(),TEXT("SpychoSmoke")) || FParse::Param(FCommandLine::Get(),TEXT("SpychoCapture")) || FParse::Param(FCommandLine::Get(),TEXT("SpychoBotSmoke")) || FParse::Param(FCommandLine::Get(),TEXT("SpychoPolishSmoke"))||FParse::Param(FCommandLine::Get(),TEXT("SpychoMansionSmoke"))) Hunter->SetActorTickEnabled(false);
     }
 }
 void ASpychoGameMode::StartMatch()
@@ -324,8 +337,8 @@ void ASpychoGameMode::RunSmokeTest()
     bool Pass=Bot->Health->Health<=0.f && Shooter->Handgun->Magazine==5 && !GS->bRoundActive && GS->Evidence.Num()>=2;
     UE_LOG(LogTemp,Display,TEXT("SPYCHO_SMOKE %s wall kill: HP=%.1f ammo=%d marks=%d roundActive=%d"),Pass?TEXT("PASS"):TEXT("FAIL"),Bot->Health->Health,Shooter->Handgun->Magazine,GS->Evidence.Num(),GS->bRoundActive);
     // A masonry exterior wall must stop exactly the same shot.
-    GS->bRoundActive=true; Bot->Health->Health=100.f; Bot->SetActorLocation(FVector(800,260,90));
-    Shooter->SetActorLocation(FVector(600,260,90)); Origin=Shooter->Camera->GetComponentLocation();
+    GS->bRoundActive=true; Bot->Health->Health=100.f; Bot->SetActorLocation(FVector(1900,260,90));
+    Shooter->SetActorLocation(FVector(1650,260,90)); Origin=Shooter->Camera->GetComponentLocation();
     Shooter->Penetration->Fire(Origin,(Bot->GetActorLocation()-Origin).GetSafeNormal());
     bool Blocked=Bot->Health->Health==100.f;
     UE_LOG(LogTemp,Display,TEXT("SPYCHO_SMOKE %s masonry stops bullet HP=%.1f"),Blocked?TEXT("PASS"):TEXT("FAIL"),Bot->Health->Health);
@@ -510,7 +523,7 @@ void ASpychoGameMode::BeginExperienceSmoke()
     if (!PC||!GS||!PC->Options) { FPlatformMisc::RequestExitWithStatus(false,1);return; }
     PC->Options->Difficulty=2;PC->ApplyOptions();StartMatch();
     auto* C=Cast<ASpychoCharacter>(PC->GetPawn());C->Handgun->Fire(FRotator::ZeroRotator);
-    bool Grace=!GS->CanShoot()&&C->Handgun->Magazine==6&&FMath::IsNearlyEqual(float(GS->RoundEndsAt-GS->RoundStartsAt),75.f);
+    bool Grace=!GS->CanShoot()&&C->Handgun->Magazine==6&&FMath::IsNearlyEqual(float(GS->RoundEndsAt-GS->RoundStartsAt),SpychoHouse::RoundSeconds);
     bool Profile=false;for (TActorIterator<ASpychoHunterController> It(GetWorld());It;++It) { Profile=It->Difficulty==2;It->SetActorTickEnabled(false); }
     PC->ShowMenu();PC->Menu->TakeWidget()->SlatePrepass();
     bool Menu=PC->bMenuOpen&&PC->Menu&&PC->Menu->TakeWidget()->GetDesiredSize().X>900&&PC->Menu->TakeWidget()->GetDesiredSize().Y>500&&PC->IsPaused()&&PC->IsMoveInputIgnored()&&PC->IsLookInputIgnored();
@@ -519,7 +532,7 @@ void ASpychoGameMode::BeginExperienceSmoke()
     bool Settings=UGameplayStatics::SaveGameToSlot(Saved,TEXT("SpychoAutomationOptions"),0);
     auto* Loaded=Cast<USpychoOptions>(UGameplayStatics::LoadGameFromSlot(TEXT("SpychoAutomationOptions"),0));Settings&=Loaded&&FMath::IsNearlyEqual(Loaded->Sensitivity,1.7f)&&FMath::IsNearlyEqual(Loaded->Brightness,.4f);UGameplayStatics::DeleteGameInSlot(TEXT("SpychoAutomationOptions"),0);
     Saved->Sensitivity=100;Saved->MasterVolume=-3;Saved->ClampValues();Settings&=Saved->Sensitivity==2.5f&&Saved->MasterVolume==0;
-    UE_LOG(LogTemp,Display,TEXT("SPYCHO_EXPERIENCE %s production ready gate, 75s clock, difficulty, pause/input and persistent settings (grace %d profile %d menu %d settings %d)"),Grace&&Profile&&Menu&&Settings?TEXT("PASS"):TEXT("FAIL"),Grace,Profile,Menu,Settings);bExperiencePassed&=Grace&&Profile&&Menu&&Settings;
+    UE_LOG(LogTemp,Display,TEXT("SPYCHO_EXPERIENCE %s production ready gate, 120s mansion clock, difficulty, pause/input and persistent settings (grace %d profile %d menu %d settings %d)"),Grace&&Profile&&Menu&&Settings?TEXT("PASS"):TEXT("FAIL"),Grace,Profile,Menu,Settings);bExperiencePassed&=Grace&&Profile&&Menu&&Settings;
     GS->RoundStartsAt=GS->GetServerWorldTimeSeconds()-1;C->Handgun->Fire(FRotator::ZeroRotator);
     FTimerHandle T;GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::CheckExperienceSmoke,.04f,false);
 }
@@ -553,4 +566,50 @@ void ASpychoGameMode::CheckBotDuel()
     bool Lethal=C&&C->Health->Health<=0&&GS&&!GS->bRoundActive;
     UE_LOG(LogTemp,Display,TEXT("SPYCHO_BOT %s visible hunter can kill player and end round"),Lethal?TEXT("PASS"):TEXT("FAIL"));bBotSmokePassed &= Lethal;
     FPlatformMisc::RequestExitWithStatus(false,bBotSmokePassed?0:1);
+}
+void ASpychoGameMode::BeginMansionSmoke()
+{
+    auto* PC=GetWorld()->GetFirstPlayerController();auto* C=PC?Cast<ASpychoCharacter>(PC->GetPawn()):nullptr;
+    ASpychoHunterController* Hunter=nullptr;for (TActorIterator<ASpychoHunterController> It(GetWorld());It;++It) Hunter=*It;
+    auto* Bot=Hunter?Cast<ASpychoCharacter>(Hunter->GetPawn()):nullptr;auto* GS=GetGameState<ASpychoGameState>();
+    if (!C||!Bot||!GS) { FPlatformMisc::RequestExitWithStatus(false,1);return; }
+    bool Starts=C->GetActorLocation().Equals(SpychoHouse::Starts[0][0],5.f)&&Bot->GetActorLocation().Equals(SpychoHouse::Starts[0][1],5.f);
+    FCollisionQueryParams Q(SCENE_QUERY_STAT(SpychoMansion),false);Q.AddIgnoredActor(C);Q.AddIgnoredActor(Bot);
+    for (TActorIterator<ASpychoDoor> It(GetWorld());It;++It) Q.AddIgnoredActor(*It);
+    bool Clear=Hunter->ValidateRouteClearance();
+    for (int32 N:SpychoHouse::RoomNodes)
+    { FHitResult H;Clear&=!GetWorld()->SweepSingleByChannel(H,SpychoHouse::Nodes[N],SpychoHouse::Nodes[N]+FVector(0,0,1),FQuat::Identity,ECC_Pawn,FCollisionShape::MakeCapsule(30,88),Q); }
+    for (const auto& Pair:SpychoHouse::Starts) for (FVector P:Pair)
+    { FHitResult H;bool Free=SpychoHouse::RoomAt(P)>=0&&!GetWorld()->SweepSingleByChannel(H,P,P+FVector(0,0,1),FQuat::Identity,ECC_Pawn,FCollisionShape::MakeCapsule(30,88),Q);Clear&=Free;if (!Free) UE_LOG(LogTemp,Warning,TEXT("SPYCHO_SPAWN blocked %s by %s"),*P.ToString(),*GetNameSafe(H.GetActor())); }
+    int32 Doors=0;bool Rooms=true;
+    for (TActorIterator<ASpychoDoor> It(GetWorld());It;++It)
+    {
+        ++Doors;FVector P=It->GetActorTransform().TransformPosition(FVector(0,50.5,154));FVector Normal=It->GetActorForwardVector()*60;
+        int32 A=SpychoHouse::RoomAt(P+Normal),B=SpychoHouse::RoomAt(P-Normal);Rooms&=A>=0&&B>=0&&A!=B;
+    }
+    auto Open=SpychoAcoustics::Probe(GetWorld(),FVector(1300,-100,154),FVector(1000,550,154),C);
+    bool Portals=Open.bOpenRoute&&Open.Distance>=FVector::Dist(FVector(1300,-100,154),FVector(1000,550,154));
+    bMansionPassed=Starts&&Clear&&Rooms&&Doors==23&&Portals;
+    UE_LOG(LogTemp,Display,TEXT("SPYCHO_MANSION %s all 15 room centres, 78 routes, production starts, 23 door mappings and public arch acoustics (starts %d clear %d rooms %d doors %d portals %d)"),bMansionPassed?TEXT("PASS"):TEXT("FAIL"),Starts,Clear,Rooms,Doors,Portals);
+    C->SetActorLocation(FVector(1100,-250,90));Bot->SetActorLocation(FVector(650,-900,90));
+    FHitResult H;FCollisionQueryParams ShotQuery(SCENE_QUERY_STAT(SpychoMansionWall),false,C);
+    GetWorld()->LineTraceSingleByChannel(H,C->Camera->GetComponentLocation(),Bot->GetActorLocation(),ECC_Visibility,ShotQuery);
+    bool Hidden=H.GetActor()!=Bot;C->Handgun->Fire((Bot->GetActorLocation()-C->Camera->GetComponentLocation()).Rotation());
+    bool Wall=Hidden&&Bot->Health->Health<=0&&Bot->Health->LastBarriers>=2;
+    UE_LOG(LogTemp,Display,TEXT("SPYCHO_MANSION %s opaque foyer-to-screening walls pass a lethal shot (%d barriers)"),Wall?TEXT("PASS"):TEXT("FAIL"),Bot->Health->LastBarriers);bMansionPassed&=Wall;
+    ResetRound();C=Cast<ASpychoCharacter>(PC->GetPawn());C->SetActorLocation(FVector(-950,-1000,90));
+    for (TActorIterator<ASpychoHunterController> It(GetWorld());It;++It)
+    {
+        It->GetPawn()->SetActorLocation(FVector(1300,50,90));It->PlanRoute(SpychoHouse::RoomNodes[9]);It->PauseUntil=0;It->SetActorTickEnabled(true);
+    }
+    FTimerHandle T;GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::CheckMansionSmoke,18.f,false);
+}
+void ASpychoGameMode::CheckMansionSmoke()
+{
+    bool Roam=false;for (TActorIterator<ASpychoHunterController> It(GetWorld());It;++It)
+    {
+        auto* Bot=Cast<ASpychoCharacter>(It->GetPawn());Roam=Bot&&SpychoHouse::RoomAt(Bot->GetActorLocation())==9&&Bot->GetFootstepCount()>0&&It->HeardEvents==0&&It->ShotsTaken==0;
+        UE_LOG(LogTemp,Display,TEXT("SPYCHO_MANSION %s bot traverses foyer/north gallery to ballroom without knowing silent player's room (position %s steps %d)"),Roam?TEXT("PASS"):TEXT("FAIL"),*It->GetPawn()->GetActorLocation().ToString(),Bot?Bot->GetFootstepCount():0);
+    }
+    FPlatformMisc::RequestExitWithStatus(false,bMansionPassed&&Roam?0:1);
 }

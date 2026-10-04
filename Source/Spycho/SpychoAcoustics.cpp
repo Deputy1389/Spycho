@@ -3,6 +3,7 @@
 #include "SpychoCharacter.h"
 #include "Components/StaticMeshComponent.h"
 #include "EngineUtils.h"
+#include "SpychoHouseLayout.h"
 float FSpychoAcousticPath::Transmission() const
 {
     return Walls==0?1.f:(bOpenRoute?.82f:FMath::Pow(.68f,Walls)*(bClosedDoor?.8f:1.f));
@@ -13,10 +14,7 @@ float FSpychoAcousticPath::Cutoff() const
 }
 int32 SpychoAcoustics::RoomAt(FVector P)
 {
-    if (P.X<-700 || P.X>700 || FMath::Abs(P.Y)>450) return -1;
-    if (P.X<-300) return 0;
-    if (FMath::Abs(P.Y)<85) return 1;
-    return P.Y>0?(P.X<200?2:3):(P.X<200?4:5);
+    return SpychoHouse::RoomAt(P);
 }
 FSpychoAcousticPath SpychoAcoustics::Probe(UWorld* World,FVector Source,FVector Listener,AActor* Ignore)
 {
@@ -40,21 +38,26 @@ FSpychoAcousticPath SpychoAcoustics::Probe(UWorld* World,FVector Source,FVector 
         Cursor=H.ImpactPoint+(Listener-H.ImpactPoint).GetSafeNormal()*2.f;
     }
     // Open doors connect rooms even when the straight path crosses a partition.
-    // Keep direction approximate; this is a small-house portal approximation.
+    // Keep direction approximate; this is an authored mansion portal model.
     int32 From=RoomAt(Source),To=RoomAt(Listener);
     if (Result.Walls>0 && From>=0 && To>=0 && From!=To)
     {
-        bool Links[6][6]{};FVector Portals[6][6]{};
+        constexpr int32 Count=SpychoHouse::RoomCount;
+        bool Links[Count][Count]{};FVector Portals[Count][Count]{};
+        auto Connect=[&](FVector Center,FVector Normal)
+        {
+            int32 A=RoomAt(Center+Normal*60),B=RoomAt(Center-Normal*60);
+            if (A>=0&&B>=0&&A!=B) { Links[A][B]=Links[B][A]=true;Portals[A][B]=Portals[B][A]=Center; }
+        };
+        for (int32 I=0;I<UE_ARRAY_COUNT(SpychoHouse::OpenPortals);++I) Connect(SpychoHouse::OpenPortals[I],SpychoHouse::PortalNormals[I]);
         for (TActorIterator<ASpychoDoor> It(World);It;++It)
         {
             if (!It->bOpen || FMath::Abs(It->Swing->GetRelativeRotation().Yaw)<60.f) continue;
             FVector Center=It->GetActorTransform().TransformPosition(FVector(0,50.5f,154));
-            FVector Normal=It->GetActorForwardVector()*60.f;
-            int32 A=RoomAt(Center+Normal),B=RoomAt(Center-Normal);
-            if (A>=0 && B>=0) { Links[A][B]=Links[B][A]=true;Portals[A][B]=Portals[B][A]=Center; }
+            Connect(Center,It->GetActorForwardVector());
         }
-        TArray<int32> Queue{From};bool Visited[6]{};Visited[From]=true;int32 Parent[6];for (int32& P:Parent) P=-1;
-        for (int32 i=0;i<Queue.Num();++i) for (int32 j=0;j<6;++j)
+        TArray<int32> Queue{From};bool Visited[Count]{};Visited[From]=true;int32 Parent[Count];for (int32& P:Parent) P=-1;
+        for (int32 i=0;i<Queue.Num();++i) for (int32 j=0;j<Count;++j)
             if (Links[Queue[i]][j]&&!Visited[j]) { Visited[j]=true;Parent[j]=Queue[i];Queue.Add(j); }
         Result.bOpenRoute=Visited[To];
         if (Result.bOpenRoute)

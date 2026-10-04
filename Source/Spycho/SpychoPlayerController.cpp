@@ -19,6 +19,7 @@ void ASpychoPlayerController::BeginPlay()
 {
     Super::BeginPlay();if (!IsLocalController()) return;
     bool Automated=FString(FCommandLine::Get()).Contains(TEXT("SpychoSmoke"))||FString(FCommandLine::Get()).Contains(TEXT("SpychoBotSmoke"))||FString(FCommandLine::Get()).Contains(TEXT("SpychoPolishSmoke"))||FString(FCommandLine::Get()).Contains(TEXT("SpychoNetSmoke"))||FString(FCommandLine::Get()).Contains(TEXT("SpychoCapture"))||FString(FCommandLine::Get()).Contains(TEXT("SpychoExperienceSmoke"));
+    Automated|=FParse::Param(FCommandLine::Get(),TEXT("SpychoMansionSmoke"));
     if (!Automated) Options=Cast<USpychoOptions>(UGameplayStatics::LoadGameFromSlot(TEXT("SpychoOptions"),0));
     if (!Options) Options=NewObject<USpychoOptions>(this);Options->ClampValues();
     ApplyOptions();

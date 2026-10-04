@@ -26,6 +26,9 @@ private:
     void BeginExperienceSmoke();
     void CheckExperienceSmoke();
     bool bExperiencePassed=true;
+    void BeginMansionSmoke();
+    void CheckMansionSmoke();
+    bool bMansionPassed=true;
     FTimerHandle AmbientTimer;
     void Creak();
     void BeginSmokeTest();
