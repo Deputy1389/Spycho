@@ -29,6 +29,29 @@ ASpychoDoor::ASpychoDoor()
     Inset=CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Inset"));Inset->SetupAttachment(Swing);Inset->SetStaticMesh(Cube.Object);
     Inset->SetMaterial(0,Mat.Object);Inset->SetRelativeLocation(FVector(0,50.5f,146));Inset->SetRelativeScale3D(FVector(.047f,.73f,.84f));
     Inset->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    Inset->SetVisibility(false);
+    // Shallow raised panels and stepped mouldings follow the moving leaf.
+    // They never change its sealed collision shape or penetration behavior.
+    ConstructorHelpers::FObjectFinder<UMaterialInterface> Paint(TEXT("/Game/Materials/ReferenceDoor"));
+    int32 DetailIndex=0;
+    auto Detail=[&](const FVector& Location,const FVector& Size)
+    {
+        auto* Part=CreateDefaultSubobject<UStaticMeshComponent>(*FString::Printf(TEXT("PanelDetail%d"),DetailIndex++));
+        Part->SetupAttachment(Swing);Part->SetStaticMesh(Cube.Object);Part->SetMaterial(0,Paint.Succeeded()?Paint.Object:Mat.Object);
+        Part->SetRelativeLocation(Location);Part->SetRelativeScale3D(Size/100.f);Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        PanelDetails.Add(Part);
+    };
+    for (float Side : {-1.f,1.f}) for (const FVector2D& Section : {FVector2D(159,68),FVector2D(94,42),FVector2D(37,40)})
+    {
+        Detail(FVector(Side*2.4f,50.5f,Section.X),FVector(.4f,76,Section.Y));
+        for (float Sign : {-1.f,1.f})
+        {
+            Detail(FVector(Side*2.8f,50.5f+Sign*39.f,Section.X),FVector(1.2f,3,Section.Y+4));
+            Detail(FVector(Side*2.8f,50.5f,Section.X+Sign*(Section.Y/2+1)),FVector(1.2f,81,3));
+            Detail(FVector(Side*3.3f,50.5f+Sign*37.f,Section.X),FVector(.5f,1,Section.Y));
+            Detail(FVector(Side*3.3f,50.5f,Section.X+Sign*(Section.Y/2-1)),FVector(.5f,75,1));
+        }
+    }
 }
 void ASpychoDoor::OnConstruction(const FTransform& Transform)
 {

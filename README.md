@@ -27,7 +27,7 @@ Six rounds loaded, twelve spare. Mouse-up looks up. Valid shots give immediate s
 
 The bot slow-walks, listens, cautiously investigates sound areas, pauses at doorways and relocates after inferred gunfire. It uses the same ammunition, footsteps, damage and penetration as a player. It only updates exact target position when both chest and head are visible. Hidden targets supply no live location updates. Gunfire can prompt one delayed, uncertain wall shot; other clues prompt investigation. A coin can distract it toward the landing rather than the thrower.
 
-Movement starts/stops more promptly without increasing top speeds. Pistol fire/reload animations, restrained sway/recoil, shell ejection and automatic lowering near walls improve handling. Doors have visible handles/insets, swing away from the operator, pause for occupied space, and show a small E prompt. Open door routes preserve more sound detail; closed doors and successive walls reduce volume/high frequencies. Short room-dependent reverb is restrained. The compact house has warm lamps, cool night windows, textured upholstery/wood, accent rooms, rugs, trim, curtains and framed prints.
+Movement starts/stops more promptly without increasing top speeds. Pistol fire/reload animations, restrained sway/recoil, shell ejection and automatic lowering near walls improve handling. Doors have visible handles/insets, swing away from the operator, pause for occupied space, and show a small E prompt. Open door routes preserve more sound detail; closed doors and successive walls reduce volume/high frequencies. Short room-dependent reverb is restrained. The house uses the supplied dim hallway reference: desaturated plaster, dark wood, wall sconces, layered trim and framed art.
 
 ## Two-player direct IP
 
@@ -47,6 +47,10 @@ Python 3 helpers discover the installed engine or use `SPYCHO_UE_ROOT`. Windows 
 - `python Tools/network_smoke.py`: two separate game processes; accepts a packaged inner executable path.
 - `python Tools/run.py play`: standalone play.
 - `python Tools/package.py OUTPUT_DIRECTORY`: Windows Development package.
-- `python Tools/run.py assets`: reimport checked-in source art, rebuild House, and apply final materials/signs. **Replaces hand edits to House.**
+- `python Tools/run.py assets`: reimport checked-in source art, rebuild House, and apply the reference atmosphere. **Replaces hand edits to House.**
 
 All map/material/audio/art assets are checked in. Editor Python is only for asset generation. Helpers set COMSPEC locally to cmd.exe. See [asset sources and licenses](docs/ASSETS.md), [verification and limitations](docs/CURRENT_STATUS.md). Recorded CC0 audio replaces the original placeholders, with four footstep variants per surface. Optional audio regeneration: install numpy and soundfile, then run `Tools/prepare_recorded_audio.py` and `Tools/run.py assets`. Door panels overlap their frames; E uses a nearby visible door within a forgiving facing cone and also works during the round countdown. Crouch has been removed.
+
+### Hallway reference visual pass
+
+The house now uses the supplied dim old-house hallway image as its visual target: pale grey/olive plaster, dark varnished wood, frosted wall sconces, substantial stepped trim, raised-panel doors, dark framed landscape paintings and a cool sash window at the far end. Lumen GI/reflections and TSR are enabled. No gameplay geometry was moved; cosmetic details do not block movement or shots. Run Tools/style_reference_house.py through Unreal Python after the base build; Tools/run.py assets includes this step. The painting source is checked in. Human visual/performance checks on other hardware remain.

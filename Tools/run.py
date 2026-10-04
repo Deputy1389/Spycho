@@ -29,7 +29,7 @@ else:
     if args.action=='polishsmoke':command+=['-SpychoPolishSmoke']
     if args.action=='test': command+=['-ExecCmds=Automation RunTests Spycho','-TestExit=Automation Test Queue Empty','-ReportExportPath='+str(project/'Saved/Automation')]
     if args.action=='assets':
-        for script in ['import_recorded_audio.py','import_duel_assets.py','build_duel_house.py','finalize_duel_art.py']:
+        for script in ['import_recorded_audio.py','import_duel_assets.py','build_duel_house.py','finalize_duel_art.py','style_reference_house.py']:
             subprocess.run(command+['-ExecutePythonScript='+str(project/'Tools'/script)],check=True)
         sys.exit(0)
 sys.exit(subprocess.call(command))

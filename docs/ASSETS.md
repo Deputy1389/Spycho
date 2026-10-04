@@ -14,7 +14,7 @@ Downloaded archive SHA-256: `e67652d0932cee41683f74711c03d3e192a2af9979ef8e6b237
 - WoodFloor051: https://ambientcg.com/view?id=WoodFloor051
 - License and raw redistribution terms: https://docs.ambientcg.com/license/
 
-Selected 1K JPG color/roughness/normal source maps are retained in `Content/ThirdParty/Source`; Unreal textures in `Content/ThirdParty/Textures`. The current wall/floor materials use color and roughness with world-space texture mapping.
+Selected 1K JPG color/roughness/normal source maps are retained in `Content/ThirdParty/Source`; Unreal textures in `Content/ThirdParty/Textures`. The current wall/floor materials use color, roughness and normal relief with world-space texture mapping. The dark floor uses a lower roughness range for varnished reflections.
 
 Archive SHA-256: Plaster001 `944b4831016e42ace4a89422e4e7190912ca2f7fed6f561354c48ec7bb54d3a4`; WoodFloor051 `3f493484eab1ec5e1c466b90e515003b286fc6d7f84ff8ff6485900bfc26cef5`.
 
@@ -24,7 +24,7 @@ Pistol mesh/material/texture assets and Manny mesh, physics, materials and selec
 
 ## Project-authored assets
 
-House layout, surface/room materials, physical materials, game code and asset/audio tooling were authored for this project. Screenshots are actual rendered game captures. No image-generated gameplay art is included.
+House layout, surface/room materials, physical materials, game code and asset/audio tooling were authored for this project. Screenshots are actual rendered game captures. One original image-generated aged landscape painting is included as wall art. Source: Content/Art/Source/HallLandscape.png; imported texture: /Game/Art/HallLandscape. Created with the built-in image-generation tool for this project; no third-party painting or artist signature is used. Tools/style_reference_house.py builds its material and layered frame geometry. ARTWORK.md in the deliverables records the full prompt. All sconces, trim, sash-window details and raised door panels are project-authored geometry.
 
 ## Recorded audio — CC0
 

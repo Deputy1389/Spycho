@@ -15,6 +15,7 @@ public:
     UPROPERTY(VisibleAnywhere) TObjectPtr<UStaticMeshComponent> HandleFront;
     UPROPERTY(VisibleAnywhere) TObjectPtr<UStaticMeshComponent> HandleBack;
     UPROPERTY(VisibleAnywhere) TObjectPtr<UStaticMeshComponent> Inset;
+    UPROPERTY(VisibleAnywhere) TArray<TObjectPtr<UStaticMeshComponent>> PanelDetails;
     UPROPERTY() TObjectPtr<UPhysicalMaterial> DoorSurface;
     UPROPERTY(Replicated) bool bOpen = false;
     UPROPERTY(Replicated) bool bCareful = false;

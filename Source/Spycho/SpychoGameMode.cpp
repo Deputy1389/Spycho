@@ -20,6 +20,8 @@
 #include "SpychoHunterController.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Camera/CameraActor.h"
+#include "Engine/DirectionalLight.h"
+#include "Components/DirectionalLightComponent.h"
 
 ASpychoGameMode::ASpychoGameMode()
 {
@@ -67,7 +69,12 @@ void ASpychoGameMode::CapturePrototype()
         for (TActorIterator<AActor> It(GetWorld());It;++It) if (It->ActorHasTag(TEXT("CaptureCeiling"))) It->SetActorHiddenInGame(true);
         auto* View=GetWorld()->SpawnActor<ACameraActor>(FVector(0,0,1600),FRotator(-90,90,0));auto* Lens=View->GetCameraComponent();
         Lens->ProjectionMode=ECameraProjectionMode::Orthographic;Lens->OrthoWidth=1760.f;
-        Lens->PostProcessSettings.bOverride_AutoExposureBias=true;Lens->PostProcessSettings.AutoExposureBias=-2.f;
+        Lens->PostProcessSettings.bOverride_AutoExposureBias=true;Lens->PostProcessSettings.AutoExposureBias=0.f;
+        // A presentation-only fill makes the roofless layout legible. Normal
+        // gameplay captures retain the authored dark interior lighting.
+        auto* Fill=GetWorld()->SpawnActor<ADirectionalLight>(FVector(0,0,900),FRotator(-90,0,0));
+        auto* Light=Cast<UDirectionalLightComponent>(Fill->GetLightComponent());
+        Light->SetMobility(EComponentMobility::Movable);Light->SetIntensity(2.f);Light->SetCastShadows(false);
         PC->SetViewTarget(View);if (PC->GetHUD()) PC->GetHUD()->bShowHUD=false;
     }
     FString Directory=FPaths::ProjectSavedDir()/TEXT("Screenshots"); IFileManager::Get().MakeDirectory(*Directory,true);

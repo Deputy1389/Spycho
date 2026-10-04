@@ -1,10 +1,10 @@
-# Current status — playable v0.3
+# Current status — playable v0.3.1
 
 Unreal Engine 5.8.2, Windows Development. Branch codex/spycho-playable-v0.1; draft PR #1 remains unmerged.
 
 ## This milestone
 
-All five requested passes are implemented: handling, sound clues, bot intentions, house presentation and deception/replay.
+The v0.3 handling, sound clues, bot intentions and deception/replay systems are retained. This pass applies the user's dim residential hallway image as the house's visual target.
 
 - Deliberate movement retains 2.1 m/s normal, 0.95 m/s Ctrl/Alt slow and 4.2 m/s Shift sprint, with faster acceleration/braking. Correct mouse look, responsive 0.16-second semi-auto firing and one queued click while ADS remain.
 - First-person and opponent firing/reload animations, restrained sway/bob, recoil recovery, cosmetic ejected cases and a close-wall weapon lowering trace. Six rounds loaded, twelve spare; 2.1-second reload.
@@ -13,17 +13,20 @@ All five requested passes are implemented: handling, sound clues, bot intentions
 - Bot patrol/listen/investigate/hold/relocate intentions. Hearing gives an uncertain area estimate; it waits before checking it. Visible chest/head checks alone supply exact target updates. Loud gunfire can provoke one inferred wall shot, then relocation. New coins can redirect older clues; later bounces preserve the initial estimate. F3 alone shows bot intention/debug information.
 - Q tosses a server-owned bouncing coin. Two per round; up to three audible bounces. The bot hears the impact location, never a hidden thrower's position. Coins and their count replicate; reset removes old coins and restores two.
 - First to three / best of five, a small score display, alternating sides and three paired start layouts, five-second next rounds, decisive match finish and Enter rematch for solo/listen host. F5 restarts a match. Connecting/disconnecting a second human starts a fresh match.
-- Same 14 x 9 m reference layout. Warmer fixtures/table lamps, cool night windows, room accents, grain/weave on furnishings, skirting/crown, rugs, curtains and framed prints. Capsule sweeps verify all authored bot routes remain clear.
+- Same 14 x 9 m reference layout. Pale desaturated plaster with normal-map relief; dark varnished wood with grain-dependent roughness; cool end-of-hall sash window; alternating frosted-glass/bronze wall sconces; stepped cornices, tall skirting and door casings; raised three-panel doors; original aged landscape paintings in dark layered frames. Ceiling fixtures and oversized room signs are removed. Lumen global illumination/reflections and TSR replace the previous unlit/reflection-free rendering setup. Capsule sweeps verify all authored bot routes remain clear.
 - Existing opaque thin-wall lethal penetration, masonry protection, persistent entry/exit evidence, replicated authoritative damage/ammo/death/round flow and direct-IP two-human play remain.
 
 ## Verification / reproduction
 
 Editor build; three Unreal rule tests; saved-map firing/movement/door checks; bot silent-hearing/doorway/wall-shot/combat checks; and new polish checks run. Equivalent packaged checks, loopback host/client replication and captured rendered views are recorded in the deliverable VALIDATION.md.
 
-Use Tools/run.py build, test, smoke, botsmoke, polishsmoke or play. Tools/network_smoke.py accepts a packaged inner executable. Tools/package.py creates the Windows build. Tools/run.py assets reimports checked-in audio/art, regenerates House and applies materials; it replaces manual map edits. Optional audio processing needs numpy + soundfile. No runtime Python or new external engine plugins.
+The roofless overhead layout capture adds a presentation-only directional fill for readability. Hallway and first-person captures use the authored game lighting.
+
+Use Tools/run.py build, test, smoke, botsmoke, polishsmoke or play. Tools/network_smoke.py accepts a packaged inner executable. Tools/package.py creates the Windows build. Tools/run.py assets reimports checked-in audio/art, regenerates House and applies materials; it replaces manual map edits. Optional audio processing needs numpy + soundfile. Tools/style_reference_house.py reapplies the atmosphere after the base map/art build. Decorative geometry has no collision; panel collision and route positions are retained. No runtime Python or new external engine plugins.
 
 ## Limits / next validation
 
+- This is a closer atmosphere/material match, not a claim of photographic parity. Stock low-poly furnishings and template character/weapon silhouettes remain. Lumen adds GPU cost; performance on other PCs is unmeasured.
 - Human playtesting must assess responsiveness, tension, perceived direction and headphone balance. Automated passes establish behavior, not fun.
 - Furnishings remain lightweight low-poly CC0 meshes; mannequin opponent and template pistol use simple animation switching. No bespoke character art or skinned pistol slide/magazine animation. Reload hands are animated, but gun parts are static.
 - Acoustic propagation is an authored six-room open-door approximation plus straight-line blockers, not a physical sound simulation. Reverb has two short room profiles. Long sound filters are sampled when the event starts.
