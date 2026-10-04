@@ -21,6 +21,7 @@ int32 SpychoAcoustics::RoomAt(FVector P)
 FSpychoAcousticPath SpychoAcoustics::Probe(UWorld* World,FVector Source,FVector Listener,AActor* Ignore)
 {
     FSpychoAcousticPath Result;
+    Result.Arrival=Source;Result.Distance=FVector::Dist(Source,Listener);
     FCollisionQueryParams Q(SCENE_QUERY_STAT(SpychoAcousticPath),false,Ignore);
     FVector Cursor=Source;
     float LastBarrier=-100.f;
@@ -43,19 +44,26 @@ FSpychoAcousticPath SpychoAcoustics::Probe(UWorld* World,FVector Source,FVector 
     int32 From=RoomAt(Source),To=RoomAt(Listener);
     if (Result.Walls>0 && From>=0 && To>=0 && From!=To)
     {
-        bool Links[6][6]{};
+        bool Links[6][6]{};FVector Portals[6][6]{};
         for (TActorIterator<ASpychoDoor> It(World);It;++It)
         {
             if (!It->bOpen || FMath::Abs(It->Swing->GetRelativeRotation().Yaw)<60.f) continue;
             FVector Center=It->GetActorTransform().TransformPosition(FVector(0,50.5f,154));
             FVector Normal=It->GetActorForwardVector()*60.f;
             int32 A=RoomAt(Center+Normal),B=RoomAt(Center-Normal);
-            if (A>=0 && B>=0) Links[A][B]=Links[B][A]=true;
+            if (A>=0 && B>=0) { Links[A][B]=Links[B][A]=true;Portals[A][B]=Portals[B][A]=Center; }
         }
-        TArray<int32> Queue{From};bool Visited[6]{};Visited[From]=true;
+        TArray<int32> Queue{From};bool Visited[6]{};Visited[From]=true;int32 Parent[6];for (int32& P:Parent) P=-1;
         for (int32 i=0;i<Queue.Num();++i) for (int32 j=0;j<6;++j)
-            if (Links[Queue[i]][j]&&!Visited[j]) { Visited[j]=true;Queue.Add(j); }
+            if (Links[Queue[i]][j]&&!Visited[j]) { Visited[j]=true;Parent[j]=Queue[i];Queue.Add(j); }
         Result.bOpenRoute=Visited[To];
+        if (Result.bOpenRoute)
+        {
+            Result.Arrival=Portals[To][Parent[To]];FVector CursorPoint=Listener;float RouteLength=0;
+            for (int32 Room=To;Room!=From;Room=Parent[Room])
+            { FVector Portal=Portals[Room][Parent[Room]];RouteLength+=FVector::Dist(CursorPoint,Portal);CursorPoint=Portal; }
+            Result.Distance=FMath::Max(Result.Distance,RouteLength+FVector::Dist(CursorPoint,Source));
+        }
     }
     return Result;
 }

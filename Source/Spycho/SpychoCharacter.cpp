@@ -11,6 +11,10 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/PoseableMeshComponent.h"
+#include "SpychoArmsAnim.h"
+#include "SpychoPlayerController.h"
+#include "SpychoOptions.h"
 #include "Animation/AnimSequence.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
@@ -27,7 +31,7 @@ ASpychoCharacter::ASpychoCharacter()
     bUseControllerRotationYaw = true;
     Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Eyes")); Camera->SetupAttachment(GetCapsuleComponent());
     Camera->SetRelativeLocation(FVector(0,0,64)); Camera->bUsePawnControlRotation = true; Camera->FieldOfView=80.f;
-    Camera->PostProcessSettings.bOverride_AutoExposureBias=true; Camera->PostProcessSettings.AutoExposureBias=-2.f;
+    Camera->PostProcessSettings.bOverride_AutoExposureBias=true; Camera->PostProcessSettings.AutoExposureBias=-1.6f;
     auto* Move = GetCharacterMovement(); Move->MaxWalkSpeed=210.f;
     Move->GetNavAgentPropertiesRef().bCanCrouch=false; Move->BrakingDecelerationWalking=1600.f;
     Move->MaxAcceleration=1200.f;Move->GroundFriction=8.f;Move->BrakingFrictionFactor=1.f;Move->bRunPhysicsWithNoController=true;
@@ -42,25 +46,29 @@ ASpychoCharacter::ASpychoCharacter()
     FireAnimation=FireAnim.Object;ReloadAnimation=ReloadAnim.Object;
     GetMesh()->SetSkeletalMesh(Manny.Object);GetMesh()->SetRelativeLocation(FVector(0,0,-88));GetMesh()->SetRelativeRotation(FRotator(0,-90,0));
     GetMesh()->SetOwnerNoSee(true);GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    GetMesh()->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+    GetMesh()->SetAnimInstanceClass(USpychoArmsAnim::StaticClass());
     WeaponRig=CreateDefaultSubobject<USceneComponent>(TEXT("WeaponRig")); WeaponRig->SetupAttachment(Camera);
     WeaponRig->SetRelativeLocation(FVector(30,11,-23));
-    ConstructorHelpers::FObjectFinder<UStaticMesh> Pistol(TEXT("/Game/Weapons/Pistol/Meshes/SM_Pistol"));
-    Gun=CreateDefaultSubobject<UStaticMeshComponent>(TEXT("HandgunView"));
-    Gun->SetStaticMesh(Pistol.Object);
+    ConstructorHelpers::FObjectFinder<USkeletalMesh> Pistol(TEXT("/Game/Weapons/Pistol/Meshes/SKM_Pistol"));
+    Gun=CreateDefaultSubobject<UPoseableMeshComponent>(TEXT("HandgunView"));
+    Gun->SetSkeletalMesh(Pistol.Object);
     Gun->SetOnlyOwnerSee(true);Gun->SetCastShadow(false);Gun->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     FirstPersonArms=CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FirstPersonHands"));FirstPersonArms->SetupAttachment(WeaponRig);
     FirstPersonArms->SetSkeletalMesh(Manny.Object);FirstPersonArms->SetRelativeRotation(FRotator(0,-90,0));
     FirstPersonArms->SetOnlyOwnerSee(true);FirstPersonArms->SetCastShadow(false);FirstPersonArms->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    FirstPersonArms->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+    FirstPersonArms->SetAnimInstanceClass(USpychoArmsAnim::StaticClass());
+    FirstPersonArms->VisibilityBasedAnimTickOption=EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
     // +Y is the barrel axis. Use the hand socket's orientation, then move this
     // compact pistol back from the generic weapon socket into the palm.
     Gun->SetupAttachment(FirstPersonArms,TEXT("HandGrip_R"));
     Gun->SetRelativeLocation(FVector(0,-5,-1));
-    WorldGun=CreateDefaultSubobject<UStaticMeshComponent>(TEXT("HeldPistol"));WorldGun->SetupAttachment(GetMesh(),TEXT("HandGrip_R"));
-    WorldGun->SetStaticMesh(Pistol.Object);WorldGun->SetOwnerNoSee(true);
+    WorldGun=CreateDefaultSubobject<UPoseableMeshComponent>(TEXT("HeldPistol"));WorldGun->SetupAttachment(GetMesh(),TEXT("HandGrip_R"));
+    WorldGun->SetSkeletalMesh(Pistol.Object);WorldGun->SetOwnerNoSee(true);
     WorldGun->SetRelativeLocation(FVector(0,-5,-1));
     WorldGun->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    ReloadMagazine=CreateDefaultSubobject<UPoseableMeshComponent>(TEXT("ReloadMagazine"));ReloadMagazine->SetupAttachment(FirstPersonArms,TEXT("HandGrip_L"));
+    ReloadMagazine->SetSkeletalMesh(Pistol.Object);ReloadMagazine->SetOnlyOwnerSee(true);ReloadMagazine->SetCastShadow(false);
+    ReloadMagazine->SetCollisionEnabled(ECollisionEnabled::NoCollision);ReloadMagazine->SetVisibility(false);
     MuzzleLight=CreateDefaultSubobject<UPointLightComponent>(TEXT("MuzzleFlash")); MuzzleLight->SetupAttachment(Gun);
     MuzzleLight->SetRelativeLocation(FVector(0,20,9)); MuzzleLight->SetIntensity(2200.f); MuzzleLight->SetAttenuationRadius(170.f);
     MuzzleLight->SetLightColor(FLinearColor(1,.55f,.2f)); MuzzleLight->SetCastShadows(false); MuzzleLight->SetVisibility(false);
@@ -68,7 +76,7 @@ ASpychoCharacter::ASpychoCharacter()
 void ASpychoCharacter::BeginPlay()
 {
     Super::BeginPlay();LastStepPosition=GetActorLocation();
-    FirstPersonArms->PlayAnimation(IdleAnimation,true);FirstPersonArms->HideBoneByName(TEXT("head"),EPhysBodyOp::PBO_None);
+    FirstPersonArms->HideBoneByName(TEXT("head"),EPhysBodyOp::PBO_None);
     FirstPersonArms->HideBoneByName(TEXT("thigh_l"),EPhysBodyOp::PBO_None);FirstPersonArms->HideBoneByName(TEXT("thigh_r"),EPhysBodyOp::PBO_None);
     FirstPersonArms->TickAnimation(0.f,false);FirstPersonArms->RefreshBoneTransforms();
     FTransform Grip=FirstPersonArms->GetSocketTransform(TEXT("HandGrip_R"),RTS_Component);
@@ -76,6 +84,23 @@ void ASpychoCharacter::BeginPlay()
     FirstPersonArms->SetRelativeRotation(Alignment.GetRotation());
     FirstPersonArms->RegisterOnBoneTransformsFinalizedDelegate(FOnBoneTransformsFinalizedMultiCast::FDelegate::CreateUObject(this,&ASpychoCharacter::AnchorFirstPersonGrip));
     AnchorFirstPersonGrip();
+    Gun->RefreshBoneTransforms();WorldGun->RefreshBoneTransforms();
+    SlideRest=Gun->GetBoneTransformByName(TEXT("Slide"),EBoneSpaces::ComponentSpace);
+    MagazineRest=Gun->GetBoneTransformByName(TEXT("Magazine"),EBoneSpaces::ComponentSpace);
+    TriggerRest=Gun->GetBoneTransformByName(TEXT("Trigger"),EBoneSpaces::ComponentSpace);
+    // Keep the parent transform invertible while shrinking its geometry. The
+    // magazine is a child of Grip, so a zero parent scale would collapse it too.
+    for (const TCHAR* Bone:{TEXT("Grip"),TEXT("Slide"),TEXT("Trigger"),TEXT("Barrel"),TEXT("Door")}) ReloadMagazine->SetBoneScaleByName(Bone,FVector(.0001f),EBoneSpaces::ComponentSpace);
+    ReloadMagazine->SetBoneTransformByName(TEXT("Magazine"),MagazineRest,EBoneSpaces::ComponentSpace);
+    ReloadMagazine->SetRelativeLocation(-MagazineRest.GetLocation()+FVector(0,0,-2));
+}
+bool ASpychoCharacter::IsReloadingPresentation() const { return Handgun->bReloading||GetWorld()->GetTimeSeconds()<LocalReloadUntil; }
+float ASpychoCharacter::GetReloadProgress() const { return FMath::Clamp((GetWorld()->GetTimeSeconds()-ReloadStarted)/Handgun->ReloadSeconds,0.f,1.f); }
+float ASpychoCharacter::GetShotProgress() const { return FMath::Clamp(1.f-(ArmShotUntil-GetWorld()->GetTimeSeconds())/.18f,0.f,1.f); }
+void ASpychoCharacter::ResetHeldInput()
+{
+    bAiming=false;bBufferedTrigger=false;bCareful=false;bSprinting=false;OnRep_Careful();
+    if (IsLocallyControlled()) { ServerCareful(false);ServerSprint(false); }
 }
 void ASpychoCharacter::AnchorFirstPersonGrip()
 {
@@ -101,12 +126,13 @@ void ASpychoCharacter::SetupPlayerInputComponent(UInputComponent* Input)
 }
 void ASpychoCharacter::Forward(float V) { if (Health->Health>0.f) AddMovementInput(FRotationMatrix(FRotator(0,GetControlRotation().Yaw,0)).GetUnitAxis(EAxis::X),V); }
 void ASpychoCharacter::Right(float V) { if (Health->Health>0.f) AddMovementInput(FRotationMatrix(FRotator(0,GetControlRotation().Yaw,0)).GetUnitAxis(EAxis::Y),V); }
-void ASpychoCharacter::Turn(float V) { if (Health->Health>0.f) AddControllerYawInput(V*.65f); }
-void ASpychoCharacter::Look(float V) { if (Health->Health>0.f) AddControllerPitchInput(V*.65f); }
+void ASpychoCharacter::Turn(float V) { if (Health->Health>0.f) { auto* PC=Cast<ASpychoPlayerController>(Controller);AddControllerYawInput(V*.65f*(PC&&PC->Options?PC->Options->Sensitivity:1.f)); } }
+void ASpychoCharacter::Look(float V) { if (Health->Health>0.f) { auto* PC=Cast<ASpychoPlayerController>(Controller);AddControllerPitchInput(V*.65f*(PC&&PC->Options?PC->Options->Sensitivity:1.f)); } }
 void ASpychoCharacter::Fire()
 {
     auto* GS=GetWorld()->GetGameState<ASpychoGameState>(); double Now=GetWorld()->GetTimeSeconds();
-    if (Health->Health<=0.f || !GS || !GS->bRoundActive || Handgun->Magazine<=0 || Handgun->bReloading || Now<LocalReloadUntil) { bBufferedTrigger=false; return; }
+    auto* PC=Cast<ASpychoPlayerController>(Controller);
+    if ((PC&&PC->bMenuOpen)||Health->Health<=0.f || !GS || !GS->CanShoot() || Handgun->Magazine<=0 || Handgun->bReloading || Now<LocalReloadUntil) { bBufferedTrigger=false; return; }
     if (Now<NextLocalShot) { bBufferedTrigger=true; return; }
     bBufferedTrigger=false;
     FRotator Aim=GetControlRotation(); NextLocalShot=Now+Handgun->ShotInterval;
@@ -116,13 +142,14 @@ void ASpychoCharacter::AimDown() { if (Health->Health>0.f) bAiming=true; }
 void ASpychoCharacter::AimUp() { bAiming=false; }
 void ASpychoCharacter::Reload()
 {
+    if (auto* PC=Cast<ASpychoPlayerController>(Controller)) if (PC->bMenuOpen) return;
     if (GetWorld()->GetTimeSeconds()<LocalReloadUntil) return;
     auto* GS=GetWorld()->GetGameState<ASpychoGameState>();
     if (Health->Health>0.f && GS && GS->bRoundActive && !Handgun->bReloading && Handgun->Magazine<6 && Handgun->Reserve>0)
     { ReloadStarted=GetWorld()->GetTimeSeconds(); LocalReloadUntil=ReloadStarted+Handgun->ReloadSeconds; }
     ServerReload();
 }
-void ASpychoCharacter::Interact() { ServerInteract(); }
+void ASpychoCharacter::Interact() { if (auto* PC=Cast<ASpychoPlayerController>(Controller)) if (PC->bMenuOpen) return;ServerInteract(); }
 void ASpychoCharacter::CarefulDown() { bCareful=true; OnRep_Careful(); ServerCareful(true); }
 void ASpychoCharacter::CarefulUp()
 {
@@ -167,6 +194,7 @@ ASpychoDoor* ASpychoCharacter::GetUsableDoor() const
 }
 void ASpychoCharacter::ThrowCoin()
 {
+    if (auto* PC=Cast<ASpychoPlayerController>(Controller)) if (PC->bMenuOpen) return;
     ServerThrowCoin(GetControlRotation());
 }
 void ASpychoCharacter::ServerThrowCoin_Implementation(FRotator Aim)
@@ -238,28 +266,26 @@ void ASpychoCharacter::UpdateWeaponPresentation(float Dt)
     Pos+=FVector(-GunKick-WallLowering*22.f,.22f*FMath::Sin(WalkPhase)*Bob-TurnSway*.18f*(1.f-AimAlpha),.18f*FMath::Cos(WalkPhase*2)*Bob-WallLowering*10.f);
     WeaponRig->SetRelativeLocation(Pos);
     WeaponRig->SetRelativeRotation(FRotator((1.f-AimAlpha)*-3.f+GunRise+ReloadTilt*6.f-WallLowering*18.f,(1.f-AimAlpha)*-4.f-ReloadTilt*8.f,ReloadTilt*15.f-TurnSway*(1.f-AimAlpha)));
-    // MM_Pistol_Fire is a mesh-space additive, not a complete hand pose.
-    // Keep the gripping base pose and recoil the entire assembly together.
-    int32 ArmState=Reloading?2:0;
-    if (ArmState!=ArmAnimation)
+    float Shot=GetShotProgress();
+    SlideTravel=Shot<.48f?FMath::Sin(Shot/.48f*PI)*1.4f:0.f;
+    if (!Reloading&&Handgun->Magazine==0) SlideTravel=1.4f;
+    float MagDrop=Reloading?(ReloadAlpha<.22f?FMath::Clamp((ReloadAlpha-.12f)/.1f,0.f,1.f):FMath::Clamp((.8f-ReloadAlpha)/.18f,0.f,1.f)):0.f;
+    bool Removed=Reloading&&ReloadAlpha>=.22f&&ReloadAlpha<.62f;
+    for (auto* Weapon:{Gun.Get(),WorldGun.Get()})
     {
-        ArmAnimation=ArmState;auto* Anim=ArmState==2?ReloadAnimation.Get():IdleAnimation.Get();
-        FirstPersonArms->PlayAnimation(Anim,ArmState==0);
-        FirstPersonArms->SetPlayRate(ArmState==2?Anim->GetPlayLength()/Handgun->ReloadSeconds:1.f);
+        FTransform Slide=SlideRest;Slide.AddToTranslation(FVector(0,-SlideTravel,0));Weapon->SetBoneTransformByName(TEXT("Slide"),Slide,EBoneSpaces::ComponentSpace);
+        FTransform Mag=MagazineRest;Mag.AddToTranslation(FVector(0,0,-MagDrop*10.f));if (Removed) Mag.SetScale3D(FVector::ZeroVector);
+        Weapon->SetBoneTransformByName(TEXT("Magazine"),Mag,EBoneSpaces::ComponentSpace);
+        FTransform Trigger=TriggerRest;Trigger.AddToTranslation(FVector(0,-.2f*(1.f-Shot),0));Weapon->SetBoneTransformByName(TEXT("Trigger"),Trigger,EBoneSpaces::ComponentSpace);
     }
-    if (Health->Health>0.f)
-    {
-        int32 State=Reloading?4:(Now<ArmShotUntil?3:(Speed<15.f?0:(Speed>280.f?2:1)));
-        if (State!=BodyAnimation) { BodyAnimation=State;GetMesh()->PlayAnimation(State==4?ReloadAnimation:(State==3||State==0?IdleAnimation:(State==1?WalkAnimation:RunAnimation)),State!=4); }
-        GetMesh()->SetPlayRate(State==4?ReloadAnimation->GetPlayLength()/Handgun->ReloadSeconds:(State==3||State==0?1.f:FMath::Clamp(Speed/(State==2?420.f:180.f),.4f,1.5f)));
-    }
+    ReloadMagazine->SetVisibility(Removed&&Health->Health>0.f);
     Camera->FieldOfView=FMath::Lerp(80.f,65.f,AimAlpha);
     MuzzleLight->SetVisibility(Now<FlashUntil && Health->Health>0.f);
 }
 void ASpychoCharacter::ShotFeedback()
 {
     ++ShotFeedbackCount;
-    ArmShotUntil=GetWorld()->GetTimeSeconds()+.18f;ArmAnimation=-1;BodyAnimation=-1;
+    ArmShotUntil=GetWorld()->GetTimeSeconds()+.18f;
     GunKick=1.6f; GunRise=FMath::Lerp(4.f,2.5f,AimAlpha); FlashUntil=GetWorld()->GetTimeSeconds()+.035f;
     if (IsLocallyControlled() && Controller)
     {

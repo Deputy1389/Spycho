@@ -23,6 +23,12 @@
 #include "Engine/DirectionalLight.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/PoseableMeshComponent.h"
+#include "SpychoOptions.h"
+#include "SpychoMenu.h"
+#include "Widgets/SWidget.h"
+#include "Camera/PlayerCameraManager.h"
+#include "Components/AudioComponent.h"
 
 ASpychoGameMode::ASpychoGameMode()
 {
@@ -37,6 +43,7 @@ void ASpychoGameMode::BeginPlay()
     if (FParse::Param(FCommandLine::Get(),TEXT("SpychoCapture"))) { FTimerHandle T; GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::CapturePrototype,5.f,false); }
     if (FParse::Param(FCommandLine::Get(),TEXT("SpychoBotSmoke"))) { FTimerHandle T; GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::BeginBotSmoke,4.f,false); }
     if (FParse::Param(FCommandLine::Get(),TEXT("SpychoPolishSmoke"))) { FTimerHandle T;GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::BeginPolishSmoke,4.f,false); }
+    if (FParse::Param(FCommandLine::Get(),TEXT("SpychoExperienceSmoke"))) { FTimerHandle T;GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::BeginExperienceSmoke,4.f,false); }
 }
 void ASpychoGameMode::CapturePrototype()
 {
@@ -84,12 +91,14 @@ void ASpychoGameMode::CapturePrototype()
         Light->SetMobility(EComponentMobility::Movable);Light->SetIntensity(2.f);Light->SetCastShadows(false);
         PC->SetViewTarget(View);if (PC->GetHUD()) PC->GetHUD()->bShowHUD=false;
     }
+    bool MenuCapture=FParse::Param(FCommandLine::Get(),TEXT("SpychoCaptureMenu"));
+    if (MenuCapture) Cast<ASpychoPlayerController>(PC)->ShowMenu(true);
     FString Directory=FPaths::ProjectSavedDir()/TEXT("Screenshots"); IFileManager::Get().MakeDirectory(*Directory,true);
     FTimerHandle T;
-    GetWorldTimerManager().SetTimer(T,FTimerDelegate::CreateLambda([this,Directory,AimCapture,PlanCapture,BotCapture,LoungeCapture,DoorCapture,ReloadCapture,FireCapture]()
+    GetWorldTimerManager().SetTimer(T,FTimerDelegate::CreateLambda([this,Directory,AimCapture,PlanCapture,BotCapture,LoungeCapture,DoorCapture,ReloadCapture,FireCapture,MenuCapture]()
     {
         const TCHAR* Name=ReloadCapture?TEXT("SpychoReload.png"):(DoorCapture?TEXT("SpychoDoor.png"):(PlanCapture?TEXT("SpychoPlan.png"):(BotCapture?TEXT("SpychoBot.png"):(LoungeCapture?TEXT("SpychoLounge.png"):(AimCapture?TEXT("SpychoAim.png"):TEXT("Spycho.png"))))));
-        FScreenshotRequest::RequestScreenshot(Directory/(FireCapture?TEXT("SpychoFire.png"):Name),false,false);
+        FScreenshotRequest::RequestScreenshot(Directory/(MenuCapture?TEXT("SpychoMenu.png"):(FireCapture?TEXT("SpychoFire.png"):Name)),MenuCapture,false);
         FTimerHandle Exit; GetWorldTimerManager().SetTimer(Exit,FTimerDelegate::CreateLambda([](){FPlatformMisc::RequestExitWithStatus(false,0);}),2.f,false);
     }),1.f,false);
 }
@@ -135,6 +144,7 @@ void ASpychoGameMode::Logout(AController* Exiting)
 void ASpychoGameMode::ResetRound()
 {
     GetWorldTimerManager().ClearTimer(ResetTimer);
+    GetWorldTimerManager().ClearTimer(RoundTimer);
     for (TActorIterator<ASpychoCharacter> It(GetWorld()); It; ++It)
     {
         if (auto* Hunter=Cast<ASpychoHunterController>(It->GetController())) Hunter->Destroy();
@@ -144,8 +154,11 @@ void ASpychoGameMode::ResetRound()
     for (TActorIterator<ASpychoDistraction> It(GetWorld());It;++It) It->Destroy();
     auto* GS=GetGameState<ASpychoGameState>(); if (!GS) return;
     ++GS->Round; GS->bRoundActive=true; GS->RoundMessage=TEXT("First to three. Listen carefully."); GS->OnRep_Round(); GS->ForceNetUpdate();
+    bool Legacy=FParse::Param(FCommandLine::Get(),TEXT("SpychoSmoke"))||FParse::Param(FCommandLine::Get(),TEXT("SpychoBotSmoke"))||FParse::Param(FCommandLine::Get(),TEXT("SpychoPolishSmoke"))||FParse::Param(FCommandLine::Get(),TEXT("SpychoNetSmoke"));
+    GS->RoundStartsAt=GS->GetServerWorldTimeSeconds()+(Legacy?0.f:3.f);GS->RoundEndsAt=GS->RoundStartsAt+75.f;GS->RoundWinner=-1;GS->ResultReason.Empty();
+    GetWorldTimerManager().SetTimer(RoundTimer,this,&ASpychoGameMode::RoundTimeout,Legacy?75.f:78.f,false);
     const FVector Starts[][2]={{{-560,-300,90},{530,300,90}},{{-190,160,90},{530,-130,90}},{{-230,-160,90},{340,360,90}}};
-    int32 MatchRound=GS->ScoreA+GS->ScoreB;int32 Pair=(MatchRound/2)%3;
+    int32 MatchRound=PlayedRounds;int32 Pair=(MatchRound/2)%3;
     auto SpawnFor=[&](int32 Slot)
     {
         FVector P=Starts[Pair][(Slot+MatchRound)%2];
@@ -169,6 +182,7 @@ void ASpychoGameMode::ResetRound()
 }
 void ASpychoGameMode::StartMatch()
 {
+    PlayedRounds=0;ConsecutiveDraws=0;
     if (auto* GS=GetGameState<ASpychoGameState>()) { GS->ScoreA=0;GS->ScoreB=0;GS->bMatchOver=false; }
     ResetRound();
 }
@@ -176,10 +190,22 @@ void ASpychoGameMode::OnDeath(ASpychoCharacter* Victim)
 {
     auto* GS=GetGameState<ASpychoGameState>(); if (!GS || !GS->bRoundActive) return;
     GS->bRoundActive=false;
+    GetWorldTimerManager().ClearTimer(RoundTimer);++PlayedRounds;ConsecutiveDraws=0;
+    GS->RoundWinner=Victim->DuelSlot==1?0:1;GS->ResultAt=GS->GetServerWorldTimeSeconds();
+    GS->ResultReason=Victim->Health->LastBarriers>0?TEXT("The lethal shot passed through a thin wall or door."):TEXT("The opponent had a clear shot.");
+    if (auto* Attacker=Cast<ASpychoCharacter>(Victim->Health->LastAttacker.Get())) if (auto* Hunter=Cast<ASpychoHunterController>(Attacker->GetController())) GS->ResultReason+=TEXT(" ")+Hunter->LastShotReason;
     if (Victim->DuelSlot==1) ++GS->ScoreA;else ++GS->ScoreB;
     GS->bMatchOver=GS->ScoreA>=3||GS->ScoreB>=3;
     GS->RoundMessage=GS->bMatchOver?TEXT("Match complete. Enter to rematch."):TEXT("Round over. Switching positions in 5 seconds.");GS->ForceNetUpdate();
     for (TActorIterator<ASpychoCharacter> It(GetWorld()); It; ++It) It->Handgun->CancelReload();
+    if (!GS->bMatchOver) GetWorldTimerManager().SetTimer(ResetTimer,this,&ASpychoGameMode::ResetRound,5.f,false);
+}
+void ASpychoGameMode::RoundTimeout()
+{
+    auto* GS=GetGameState<ASpychoGameState>();if (!GS||!GS->bRoundActive) return;
+    GS->bRoundActive=false;GS->RoundWinner=-2;GS->ResultAt=GS->GetServerWorldTimeSeconds();GS->ResultReason=TEXT("Neither player landed a lethal shot. No point awarded.");
+    ++PlayedRounds;++ConsecutiveDraws;GS->bMatchOver=ConsecutiveDraws>=3;GS->RoundMessage=GS->bMatchOver?TEXT("Three stalemates. Match drawn."):TEXT("Time expired. Switching positions.");GS->ForceNetUpdate();
+    for (TActorIterator<ASpychoCharacter> It(GetWorld());It;++It) It->Handgun->CancelReload();
     if (!GS->bMatchOver) GetWorldTimerManager().SetTimer(ResetTimer,this,&ASpychoGameMode::ResetRound,5.f,false);
 }
 void ASpychoGameMode::Creak()
@@ -409,7 +435,7 @@ void ASpychoGameMode::CheckPolishMatch()
     auto* PC=GetWorld()->GetFirstPlayerController();auto* C=Cast<ASpychoCharacter>(PC->GetPawn());
     bool Lowered=C->GetWallLowering()>.6f;
     UE_LOG(LogTemp,Display,TEXT("SPYCHO_POLISH %s close wall lowers weapon %.2f"),Lowered?TEXT("PASS"):TEXT("FAIL"),C->GetWallLowering());bPolishPassed&=Lowered;
-    auto* GS=GetGameState<ASpychoGameState>();GS->ScoreA=0;GS->ScoreB=1;ResetRound();
+    auto* GS=GetGameState<ASpychoGameState>();GS->ScoreA=0;GS->ScoreB=1;PlayedRounds=1;ResetRound();
     C=Cast<ASpychoCharacter>(PC->GetPawn());bool Swapped=C->GetActorLocation().X>300&&C->Coins==2&&GS->ScoreB==1;
     GS->ScoreA=2;GS->ScoreB=2;
     for (TActorIterator<ASpychoCharacter> It(GetWorld());It;++It) if (It->bTestOpponent) { It->Health->Damage(1000.f);break; }
@@ -468,7 +494,58 @@ void ASpychoGameMode::CheckBotWallShot()
     {
         It->GetPawn()->SetActorLocation(FVector(350,180,90));It->SetControlRotation(FRotator(0,90,0));It->GetPawn()->SetActorRotation(FRotator(0,90,0));It->SetActorTickEnabled(true);
     }
-    FTimerHandle T;GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::CheckBotDuel,2.f,false);
+    FTimerHandle T;GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::CheckBotWarning,2.f,false);
+}
+void ASpychoGameMode::CheckBotWarning()
+{
+    auto* C=Cast<ASpychoCharacter>(GetWorld()->GetFirstPlayerController()->GetPawn());bool Warning=false;
+    for (TActorIterator<ASpychoHunterController> It(GetWorld());It;++It)
+        Warning=C&&C->Health->Health==100&&It->ShotsTaken==1&&It->GetPawn()->GetActorLocation().Y<175.f;
+    UE_LOG(LogTemp,Display,TEXT("SPYCHO_BOT %s first visible shot misses and hunter backs off before lethal follow-up"),Warning?TEXT("PASS"):TEXT("FAIL"));bBotSmokePassed&=Warning;
+    FTimerHandle T;GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::CheckBotDuel,4.f,false);
+}
+void ASpychoGameMode::BeginExperienceSmoke()
+{
+    auto* PC=Cast<ASpychoPlayerController>(GetWorld()->GetFirstPlayerController());auto* GS=GetGameState<ASpychoGameState>();
+    if (!PC||!GS||!PC->Options) { FPlatformMisc::RequestExitWithStatus(false,1);return; }
+    PC->Options->Difficulty=2;PC->ApplyOptions();StartMatch();
+    auto* C=Cast<ASpychoCharacter>(PC->GetPawn());C->Handgun->Fire(FRotator::ZeroRotator);
+    bool Grace=!GS->CanShoot()&&C->Handgun->Magazine==6&&FMath::IsNearlyEqual(float(GS->RoundEndsAt-GS->RoundStartsAt),75.f);
+    bool Profile=false;for (TActorIterator<ASpychoHunterController> It(GetWorld());It;++It) { Profile=It->Difficulty==2;It->SetActorTickEnabled(false); }
+    PC->ShowMenu();PC->Menu->TakeWidget()->SlatePrepass();
+    bool Menu=PC->bMenuOpen&&PC->Menu&&PC->Menu->TakeWidget()->GetDesiredSize().X>900&&PC->Menu->TakeWidget()->GetDesiredSize().Y>500&&PC->IsPaused()&&PC->IsMoveInputIgnored()&&PC->IsLookInputIgnored();
+    PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::LeftMouseButton,IE_Pressed,1.f));Menu&=C->Handgun->Magazine==6;PC->CloseMenu();Menu&=!PC->bMenuOpen&&!PC->IsPaused()&&!PC->IsMoveInputIgnored()&&!PC->IsLookInputIgnored();
+    auto* Saved=NewObject<USpychoOptions>();Saved->Brightness=.4f;Saved->Sensitivity=1.7f;
+    bool Settings=UGameplayStatics::SaveGameToSlot(Saved,TEXT("SpychoAutomationOptions"),0);
+    auto* Loaded=Cast<USpychoOptions>(UGameplayStatics::LoadGameFromSlot(TEXT("SpychoAutomationOptions"),0));Settings&=Loaded&&FMath::IsNearlyEqual(Loaded->Sensitivity,1.7f)&&FMath::IsNearlyEqual(Loaded->Brightness,.4f);UGameplayStatics::DeleteGameInSlot(TEXT("SpychoAutomationOptions"),0);
+    Saved->Sensitivity=100;Saved->MasterVolume=-3;Saved->ClampValues();Settings&=Saved->Sensitivity==2.5f&&Saved->MasterVolume==0;
+    UE_LOG(LogTemp,Display,TEXT("SPYCHO_EXPERIENCE %s production ready gate, 75s clock, difficulty, pause/input and persistent settings (grace %d profile %d menu %d settings %d)"),Grace&&Profile&&Menu&&Settings?TEXT("PASS"):TEXT("FAIL"),Grace,Profile,Menu,Settings);bExperiencePassed&=Grace&&Profile&&Menu&&Settings;
+    GS->RoundStartsAt=GS->GetServerWorldTimeSeconds()-1;C->Handgun->Fire(FRotator::ZeroRotator);
+    FTimerHandle T;GetWorldTimerManager().SetTimer(T,this,&ASpychoGameMode::CheckExperienceSmoke,.04f,false);
+}
+void ASpychoGameMode::CheckExperienceSmoke()
+{
+    auto* PC=Cast<ASpychoPlayerController>(GetWorld()->GetFirstPlayerController());auto* GS=GetGameState<ASpychoGameState>();auto* C=Cast<ASpychoCharacter>(PC->GetPawn());
+    bool Parts=C->Handgun->Magazine==5&&C->GetSlideTravel()>.1f&&C->FirstPersonArms->GetAnimInstance()!=nullptr;
+    C->SetActorLocation(FVector(470,0,90));PC->PlayerCameraManager->UpdateCamera(.01f);
+    GS->Noise(ESpychoNoise::Gunshot,FVector(470,260,154),1.f);GS->Tick(1.f);
+    float ClosedFilter=GS->Voices.IsEmpty()?0.f:GS->Voices.Last().Cutoff;
+    auto BeforePath=SpychoAcoustics::Probe(GetWorld(),FVector(270,260,154),C->Camera->GetComponentLocation(),C);
+    for (TActorIterator<ASpychoDoor> It(GetWorld());It;++It)
+        if (FVector::Dist2D(It->GetActorLocation(),FVector(520.5f,85,0))<5.f)
+        { It->Toggle(true);It->Swing->SetRelativeRotation(FRotator(0,It->SwingAngle,0)); }
+    GS->Tick(1.f);float OpenFilter=GS->Voices.IsEmpty()?0.f:GS->Voices.Last().Cutoff;
+    auto OpenPath=SpychoAcoustics::Probe(GetWorld(),FVector(270,260,154),C->Camera->GetComponentLocation(),C);
+    bool Filtering=OpenFilter>ClosedFilter&&OpenPath.bOpenRoute&&!BeforePath.bOpenRoute&&OpenPath.Distance>=FVector::Dist(FVector(270,260,154),C->Camera->GetComponentLocation());
+    UE_LOG(LogTemp,Display,TEXT("SPYCHO_EXPERIENCE %s active gunshot filtering follows opening door; around-corner route retains distance (%.0f -> %.0f, portal %d)"),Filtering?TEXT("PASS"):TEXT("FAIL"),ClosedFilter,OpenFilter,OpenPath.bOpenRoute);bExperiencePassed&=Filtering;
+    PC->Options->MasterVolume=0;GS->Noise(ESpychoNoise::Gunshot,C->GetActorLocation()+FVector(300,0,0),1.f);GS->Tick(1.f);
+    bool Mix=GS->Voices.Num()>0;for (const auto& Voice:GS->Voices) Mix&=Voice.Volume<.001f;
+    RoundTimeout();bool Draw=GS->RoundWinner==-2&&!GS->bRoundActive&&!GS->bMatchOver&&GS->ScoreA==0&&GS->ScoreB==0&&PlayedRounds==1;
+    ResetRound();Draw&=Cast<ASpychoCharacter>(PC->GetPawn())->GetActorLocation().X>300;
+    RoundTimeout();ResetRound();RoundTimeout();Draw&=GS->bMatchOver&&GS->RoundWinner==-2;
+    PC->Options->MasterVolume=.9f;StartMatch();Draw&=GS->bRoundActive&&!GS->bMatchOver&&PlayedRounds==0;
+    UE_LOG(LogTemp,Display,TEXT("SPYCHO_EXPERIENCE %s animated slide, live sound mix, scoreless timeouts, swapped spawns, stalemate limit and rematch (parts %d mix %d draws %d)"),Parts&&Mix&&Draw?TEXT("PASS"):TEXT("FAIL"),Parts,Mix,Draw);bExperiencePassed&=Parts&&Mix&&Draw;
+    FPlatformMisc::RequestExitWithStatus(false,bExperiencePassed?0:1);
 }
 void ASpychoGameMode::CheckBotDuel()
 {

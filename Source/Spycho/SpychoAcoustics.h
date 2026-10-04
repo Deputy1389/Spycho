@@ -7,6 +7,8 @@ struct FSpychoAcousticPath
     int32 Walls=0;
     bool bClosedDoor=false;
     bool bOpenRoute=false;
+    FVector Arrival=FVector::ZeroVector;
+    float Distance=0;
     float Transmission() const;
     float Cutoff() const;
 };

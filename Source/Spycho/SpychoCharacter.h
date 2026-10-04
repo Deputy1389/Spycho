@@ -9,6 +9,7 @@ class USpychoHandgun;
 class USpychoPenetration;
 class UPointLightComponent;
 class USkeletalMeshComponent;
+class UPoseableMeshComponent;
 class UAnimSequence;
 class ASpychoDoor;
 
@@ -22,11 +23,12 @@ public:
     UPROPERTY(VisibleAnywhere) TObjectPtr<USpychoHealth> Health;
     UPROPERTY(VisibleAnywhere) TObjectPtr<USpychoHandgun> Handgun;
     UPROPERTY(VisibleAnywhere) TObjectPtr<USpychoPenetration> Penetration;
-    UPROPERTY(VisibleAnywhere) TObjectPtr<UStaticMeshComponent> Gun;
+    UPROPERTY(VisibleAnywhere) TObjectPtr<UPoseableMeshComponent> Gun;
     UPROPERTY(VisibleAnywhere) TObjectPtr<USceneComponent> WeaponRig;
     UPROPERTY() TObjectPtr<UPointLightComponent> MuzzleLight;
     UPROPERTY() TObjectPtr<USkeletalMeshComponent> FirstPersonArms;
-    UPROPERTY() TObjectPtr<UStaticMeshComponent> WorldGun;
+    UPROPERTY() TObjectPtr<UPoseableMeshComponent> WorldGun;
+    UPROPERTY() TObjectPtr<UPoseableMeshComponent> ReloadMagazine;
     UPROPERTY() TObjectPtr<UAnimSequence> IdleAnimation;
     UPROPERTY() TObjectPtr<UAnimSequence> WalkAnimation;
     UPROPERTY() TObjectPtr<UAnimSequence> RunAnimation;
@@ -45,6 +47,11 @@ public:
     int32 GetFootstepCount() const { return FootstepCount; }
     ASpychoDoor* GetUsableDoor() const;
     float GetWallLowering() const { return WallLowering; }
+    bool IsReloadingPresentation() const;
+    float GetReloadProgress() const;
+    float GetShotProgress() const;
+    void ResetHeldInput();
+    float GetSlideTravel() const { return SlideTravel; }
     virtual void Tick(float DeltaSeconds) override;
     virtual void SetupPlayerInputComponent(UInputComponent* Input) override;
     virtual void BeginPlay() override;
@@ -66,7 +73,6 @@ private:
     void UpdateWeaponPresentation(float DeltaSeconds);
     void AnchorFirstPersonGrip();
     void SprintDown(); void SprintUp();
-    int32 BodyAnimation = -1;
     int32 FootstepCount = 0;
     float GunKick = 0.f;
     float GunRise = 0.f;
@@ -87,8 +93,9 @@ private:
     void ThrowCoin();
     float NextCoin=0.f;
     float ArmShotUntil=0.f;
-    int32 ArmAnimation=-1;
     float WallLowering=0.f;
     float TurnSway=0.f;
     FRotator PreviousAim;
+    FTransform SlideRest,MagazineRest,TriggerRest;
+    float SlideTravel=0.f;
 };

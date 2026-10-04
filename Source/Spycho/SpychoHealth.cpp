@@ -2,9 +2,10 @@
 #include "SpychoCharacter.h"
 #include "Net/UnrealNetwork.h"
 USpychoHealth::USpychoHealth() { SetIsReplicatedByDefault(true); }
-void USpychoHealth::Damage(float Amount)
+void USpychoHealth::Damage(float Amount,AActor* Attacker,int32 Barriers)
 {
     if (!GetOwner()->HasAuthority() || Health <= 0.f) return;
+    LastAttacker=Attacker;LastBarriers=Barriers;
     Health = FMath::Max(0.f, Health - FMath::Max(0.f, Amount));
     OnRep_Health();
 }

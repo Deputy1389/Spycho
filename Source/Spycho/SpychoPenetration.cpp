@@ -22,7 +22,7 @@ void USpychoPenetration::Fire(FVector Origin, FVector Direction)
         if (!GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Query)) { if (GS) GS->ShotDebug(Start, End, TEXT("miss")); break; }
         if (auto* Health = Hit.GetActor() ? Hit.GetActor()->FindComponentByClass<USpychoHealth>() : nullptr)
         {
-            float Damage = SpychoRules::Damage(Energy, InitialEnergy, BaseDamage); Health->Damage(Damage);
+            float Damage = SpychoRules::Damage(Energy, InitialEnergy, BaseDamage); Health->Damage(Damage,GetOwner(),Event);
             if (GS) GS->ShotDebug(Start, Hit.ImpactPoint, FString::Printf(TEXT("target: energy %.1f, damage %.1f"), Energy, Damage));
             break;
         }

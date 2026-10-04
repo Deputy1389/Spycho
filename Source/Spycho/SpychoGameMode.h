@@ -17,8 +17,15 @@ public:
     void ResetRound();
     void StartMatch();
     void NetworkSmokeResult(bool Passed, bool Final);
+    void RoundTimeout();
 private:
     FTimerHandle ResetTimer;
+    FTimerHandle RoundTimer;
+    int32 PlayedRounds=0;
+    int32 ConsecutiveDraws=0;
+    void BeginExperienceSmoke();
+    void CheckExperienceSmoke();
+    bool bExperiencePassed=true;
     FTimerHandle AmbientTimer;
     void Creak();
     void BeginSmokeTest();
@@ -39,6 +46,7 @@ private:
     bool bNetworkSmokePassed = true;
     void CapturePrototype();
     void BeginBotSmoke(); void CheckBotSilence(); void CheckBotRoam(); void CheckBotWallShot(); void CheckBotDuel();
+    void CheckBotWarning();
     bool bBotSmokePassed = true;
     void BeginPolishSmoke();void CheckPolishCoin();void CheckPolishSearch();void CheckPolishMatch();
     void CheckPolishRematch();

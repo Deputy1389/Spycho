@@ -5,9 +5,9 @@ from pathlib import Path
 project=Path(__file__).resolve().parents[1]
 os.environ['COMSPEC']=str(Path(os.environ.get('SystemRoot','C:/Windows'))/'System32/cmd.exe')
 parser=argparse.ArgumentParser()
-parser.add_argument('action',choices=['build','test','smoke','botsmoke','polishsmoke','assets','play','host','join','capture'])
+parser.add_argument('action',choices=['build','test','smoke','botsmoke','polishsmoke','experiencesmoke','assets','play','host','join','capture'])
 parser.add_argument('address',nargs='?',default='127.0.0.1:7777')
-parser.add_argument('--view',choices=['hall','aim','fire','reload','bot','plan','door','lounge'],default='hall')
+parser.add_argument('--view',choices=['hall','aim','fire','reload','bot','plan','door','lounge','menu'],default='hall')
 args=parser.parse_args()
 if os.environ.get('SPYCHO_UE_ROOT'): engine=Path(os.environ['SPYCHO_UE_ROOT'])
 else:
@@ -21,13 +21,14 @@ if args.action=='build':
 else:
     executable='UnrealEditor.exe' if args.action in ['play','host','join','capture'] else 'UnrealEditor-Cmd.exe'
     command=[str(engine/'Engine/Binaries/Win64'/executable),uproject]
-    if args.action in ['play','host','join','smoke','botsmoke','polishsmoke','capture']:
+    if args.action in ['play','host','join','smoke','botsmoke','polishsmoke','experiencesmoke','capture']:
         command+=[args.address if args.action=='join' else '/Game/Maps/House'+('?listen' if args.action=='host' else ''),'-game']
     if args.action in ['play','host','join','capture']: command+=['-windowed','-ResX=1280','-ResY=720','-nosplash']
     else: command+=['-unattended','-nosplash','-nullrhi','-stdout','-FullStdOutLogOutput']
     if args.action=='smoke': command+=['-SpychoSmoke']
     if args.action=='botsmoke':command+=['-SpychoBotSmoke']
     if args.action=='polishsmoke':command+=['-SpychoPolishSmoke']
+    if args.action=='experiencesmoke':command+=['-SpychoExperienceSmoke']
     if args.action=='capture':
         command+=['-SpychoCapture','-unattended']
         if args.view!='hall':command+=['-SpychoCapture'+args.view.title()]

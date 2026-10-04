@@ -20,6 +20,7 @@ public:
     ESpychoHunterState State=ESpychoHunterState::Patrol;
     const TCHAR* StateName() const;
     bool ValidateRouteClearance() const;
+    FString LastShotReason;
 private:
     friend class ASpychoGameMode;
     TArray<int32> Route;
@@ -33,6 +34,9 @@ private:
     int32 SoundGoal=-1;
     float HoldYaw=0.f;
     bool bHadSight=false;
+    bool bWarningShot=true;
+    float RetreatUntil=0;
+    int32 Difficulty=1;
     ESpychoNoise RememberedKind=ESpychoNoise::Creak;
     TWeakObjectPtr<AActor> RememberedSource;
     int32 Destination = -1;

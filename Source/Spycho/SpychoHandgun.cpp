@@ -13,7 +13,7 @@ void USpychoHandgun::Fire(FRotator Aim, int32 PredictionKey)
 {
     auto* C = Cast<ASpychoCharacter>(GetOwner());
     auto* GS = GetWorld()->GetGameState<ASpychoGameState>();
-    if (!C || !C->HasAuthority() || Aim.ContainsNaN() || !SpychoRules::CanFire(Magazine, bReloading, C->Health->Health>0.f, GS && GS->bRoundActive)) return;
+    if (!C || !C->HasAuthority() || Aim.ContainsNaN() || !SpychoRules::CanFire(Magazine, bReloading, C->Health->Health>0.f, GS && GS->CanShoot())) return;
     double Wait=NextShot-GetWorld()->GetTimeSeconds();
     if (Wait>0)
     {

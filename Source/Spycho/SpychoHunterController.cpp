@@ -48,6 +48,7 @@ bool ASpychoHunterController::ValidateRouteClearance() const
 void ASpychoHunterController::OnPossess(APawn* InPawn)
 {
     Super::OnPossess(InPawn);PauseUntil=GetWorld()->GetTimeSeconds()+FMath::FRandRange(6.f,10.f);
+    if (auto* GS=GetWorld()->GetGameState<ASpychoGameState>()) Difficulty=GS->BotDifficulty;
     if (auto* C=Cast<ASpychoCharacter>(InPawn)) { C->bCareful=true;C->OnRep_Careful();HoldYaw=C->GetActorRotation().Yaw; }
 }
 void ASpychoHunterController::HearNoise(ESpychoNoise Kind,FVector Location,float Gain,AActor* Source)
@@ -56,16 +57,16 @@ void ASpychoHunterController::HearNoise(ESpychoNoise Kind,FVector Location,float
     if (!C||Source==C||C->Health->Health<=0||Kind==ESpychoNoise::Creak||Kind==ESpychoNoise::Impact) return;
     auto Path=SpychoAcoustics::Probe(GetWorld(),Location+FVector(0,0,12),C->Camera->GetComponentLocation(),C);
     float Radius=(Kind==ESpychoNoise::Gunshot?5000.f:Gain*3400.f)*Path.Transmission();
-    if (FVector::Dist2D(C->GetActorLocation(),Location)>Radius) return;
+    if (Path.Distance>Radius) return;
     ++HeardEvents;float Now=GetWorld()->GetTimeSeconds();
     bool NewDistraction=Kind==ESpychoNoise::Distraction&&(RememberedKind!=Kind||RememberedSource.Get()!=Source);
     if (MemoryUntil<Now||Kind==ESpychoNoise::Gunshot||NewDistraction)
     {
         RememberedKind=Kind;RememberedSource=Source;
         // An area estimate from an audible event, never the target's live position.
-        float Error=Kind==ESpychoNoise::Distraction?65.f:(Path.Walls>0?140.f:70.f);
+        float Error=(Kind==ESpychoNoise::Distraction?65.f:(Path.Walls>0?140.f:70.f))*(Difficulty==0?1.3f:Difficulty==2?.8f:1.f);
         LastKnown=Location+FVector(FMath::FRandRange(-Error,Error),FMath::FRandRange(-Error,Error),0);LastKnown.Z=115;
-        SoundGoal=Closest(LastKnown);AttackReady=Now+FMath::FRandRange(2.f,3.f);MemoryUntil=Now+5.f;
+        SoundGoal=Closest(LastKnown);AttackReady=Now+FMath::FRandRange(2.f,3.f)+(1-Difficulty)*.5f;MemoryUntil=Now+5.f;
         bWallShotAllowed=Kind==ESpychoNoise::Gunshot;
         InvestigateAt=Now+FMath::FRandRange(6.f,8.f);PauseUntil=InvestigateAt;
         State=ESpychoHunterState::Listen;HoldYaw=(LastKnown-C->GetActorLocation()).Rotation().Yaw;
@@ -90,7 +91,7 @@ void ASpychoHunterController::PlanRoute(int32 Goal)
 void ASpychoHunterController::Tick(float Dt)
 {
     Super::Tick(Dt);auto* C=Cast<ASpychoCharacter>(GetPawn());auto* GS=GetWorld()->GetGameState<ASpychoGameState>();
-    if (!C||!HasAuthority()||C->Health->Health<=0||!GS||!GS->bRoundActive) return;
+    if (!C||!HasAuthority()||C->Health->Health<=0||!GS||!GS->CanShoot()) return;
     float Now=GetWorld()->GetTimeSeconds();bool Visible=false;
     for (FConstPlayerControllerIterator It=GetWorld()->GetPlayerControllerIterator();It;++It)
     {
@@ -102,7 +103,7 @@ void ASpychoHunterController::Tick(float Dt)
         if (Hit.GetActor()!=Target) continue;
         GetWorld()->LineTraceSingleByChannel(Hit,C->Camera->GetComponentLocation(),Target->Camera->GetComponentLocation(),ECC_Visibility,Q);
         if (Hit.GetActor()!=Target) continue;
-        if (!bHadSight) AttackReady=Now+1.2f;
+        if (!bHadSight) { AttackReady=Now+(Difficulty==0?1.7f:Difficulty==2?.85f:1.25f);bWarningShot=true; }
         Visible=true;LastKnown=Target->GetActorLocation()+FVector(0,0,25);MemoryUntil=Now+2.f;bWallShotAllowed=false;SoundGoal=-1;break;
     }
     if (bHadSight&&!Visible) { State=ESpychoHunterState::Hold;PauseUntil=Now+3.f;HoldYaw=C->GetActorRotation().Yaw; }
@@ -113,13 +114,22 @@ void ASpychoHunterController::Tick(float Dt)
     {
         FRotator Aim=(LastKnown-C->Camera->GetComponentLocation()).Rotation();
         SetControlRotation(FMath::RInterpTo(GetControlRotation(),Aim,Dt,6.f));C->SetActorRotation(FRotator(0,GetControlRotation().Yaw,0));
-        C->GetCharacterMovement()->StopMovementImmediately();
+        if (Now<RetreatUntil)
+        {
+            C->GetCharacterMovement()->MaxWalkSpeed=110.f;
+            C->AddMovementInput((C->GetActorLocation()-LastKnown).GetSafeNormal2D());
+        }
+        else C->GetCharacterMovement()->StopMovementImmediately();
         if ((Visible||bWallShotAllowed)&&Now>=AttackReady&&Now>=NextAttack)
         {
-            FVector Error=Visible?FVector(FMath::FRandRange(-14.f,14.f),FMath::FRandRange(-14.f,14.f),FMath::FRandRange(-8.f,8.f)):FVector::ZeroVector;
+            float Spread=Difficulty==0?28.f:Difficulty==2?10.f:18.f;
+            FVector Error=Visible?FVector(FMath::FRandRange(-Spread,Spread),FMath::FRandRange(-Spread,Spread),FMath::FRandRange(-10.f,10.f)):FVector::ZeroVector;
+            bool Warning=Visible&&bWarningShot;
+            if (Warning) Error=FVector::CrossProduct((LastKnown-C->Camera->GetComponentLocation()).GetSafeNormal2D(),FVector::UpVector)*75.f;
+            LastShotReason=Visible?TEXT("The bot saw you in the open."):TEXT("The bot answered your gunshot using a rough sound estimate.");
             int32 Before=C->Handgun->Magazine;C->Handgun->Fire((LastKnown+Error-C->Camera->GetComponentLocation()).Rotation());
-            if (C->Handgun->Magazine<Before) ++ShotsTaken;
-            NextAttack=Now+FMath::FRandRange(1.8f,2.8f);
+            if (C->Handgun->Magazine<Before) { ++ShotsTaken;bWarningShot=false;RetreatUntil=Now+1.2f; }
+            NextAttack=Now+FMath::FRandRange(1.8f,2.8f)+(1-Difficulty)*.4f;
             if (!Visible)
             {
                 MemoryUntil=0;bWallShotAllowed=false;SoundGoal=-1;State=ESpychoHunterState::Relocate;

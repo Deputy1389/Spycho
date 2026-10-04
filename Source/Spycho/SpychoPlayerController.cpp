@@ -10,12 +10,81 @@
 #include "EngineUtils.h"
 #include "TimerManager.h"
 #include "InputKeyEventArgs.h"
+#include "SpychoOptions.h"
+#include "SpychoMenu.h"
+#include "Components/AudioComponent.h"
+#include "Sound/SoundAttenuation.h"
+#include "GameFramework/SaveGame.h"
+void ASpychoPlayerController::BeginPlay()
+{
+    Super::BeginPlay();if (!IsLocalController()) return;
+    bool Automated=FString(FCommandLine::Get()).Contains(TEXT("SpychoSmoke"))||FString(FCommandLine::Get()).Contains(TEXT("SpychoBotSmoke"))||FString(FCommandLine::Get()).Contains(TEXT("SpychoPolishSmoke"))||FString(FCommandLine::Get()).Contains(TEXT("SpychoNetSmoke"))||FString(FCommandLine::Get()).Contains(TEXT("SpychoCapture"))||FString(FCommandLine::Get()).Contains(TEXT("SpychoExperienceSmoke"));
+    if (!Automated) Options=Cast<USpychoOptions>(UGameplayStatics::LoadGameFromSlot(TEXT("SpychoOptions"),0));
+    if (!Options) Options=NewObject<USpychoOptions>(this);Options->ClampValues();
+    ApplyOptions();
+    if (!Automated&&GetNetMode()==NM_Standalone) ShowMenu(true);
+}
+void ASpychoPlayerController::Tick(float Dt)
+{
+    Super::Tick(Dt);
+    if (IsLocalController()&&Options) if (auto* C=Cast<ASpychoCharacter>(GetPawn()))
+    { C->Camera->PostProcessSettings.AutoExposureBias=-1.6f+Options->Brightness; }
+}
+void ASpychoPlayerController::ApplyOptions()
+{
+    if (!Options) return;Options->ClampValues();
+    if (HasAuthority()) ServerSetDifficulty(Options->Difficulty);
+}
+void ASpychoPlayerController::SaveOptions()
+{
+    if (FString(FCommandLine::Get()).Contains(TEXT("Smoke"))||FString(FCommandLine::Get()).Contains(TEXT("SpychoCapture"))) return;
+    if (Options) UGameplayStatics::SaveGameToSlot(Options,TEXT("SpychoOptions"),0);
+}
+void ASpychoPlayerController::ServerSetDifficulty_Implementation(int32 Level)
+{
+    if (IsLocalController()) if (auto* GS=GetWorld()->GetGameState<ASpychoGameState>()) GS->BotDifficulty=FMath::Clamp(Level,0,2);
+}
+void ASpychoPlayerController::ToggleMenu() { if (bMenuOpen) CloseMenu();else ShowMenu(); }
+void ASpychoPlayerController::ShowMenu(bool Startup)
+{
+    if (!IsLocalController()||bMenuOpen) return;bMenuOpen=true;bStartupMenu=Startup;
+    if (auto* C=Cast<ASpychoCharacter>(GetPawn())) C->ResetHeldInput();
+    SetIgnoreMoveInput(true);SetIgnoreLookInput(true);
+    Menu=CreateWidget<USpychoMenu>(this,USpychoMenu::StaticClass());Menu->AddToViewport(20);
+    bShowMouseCursor=true;
+    FInputModeUIOnly Mode;Mode.SetWidgetToFocus(Menu->TakeWidget());Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);SetInputMode(Mode);
+    if (GetNetMode()==NM_Standalone&&!FParse::Param(FCommandLine::Get(),TEXT("SpychoCaptureMenu"))) SetPause(true);
+}
+void ASpychoPlayerController::CloseMenu()
+{
+    if (!bMenuOpen) return;SaveOptions();bMenuOpen=false;
+    if (Menu) Menu->RemoveFromParent();Menu=nullptr;bShowMouseCursor=false;
+    if (GetNetMode()==NM_Standalone) SetPause(false);
+    ResetIgnoreMoveInput();ResetIgnoreLookInput();SetInputMode(FInputModeGameOnly());FlushPressedKeys();
+    if (auto* C=Cast<ASpychoCharacter>(GetPawn())) C->ResetHeldInput();
+}
+void ASpychoPlayerController::StartSolo()
+{
+    bool Fresh=bStartupMenu;CloseMenu();bStartupMenu=false;
+    if (GetNetMode()!=NM_Standalone) UGameplayStatics::OpenLevel(this,TEXT("/Game/Maps/House"));
+    else if (Fresh) if (auto* GM=GetWorld()->GetAuthGameMode<ASpychoGameMode>()) GM->StartMatch();
+}
+void ASpychoPlayerController::TestSound(bool Right)
+{
+    auto* GS=GetWorld()->GetGameState<ASpychoGameState>();if (!GS||!Options) return;
+    FVector Eyes;FRotator Facing;GetPlayerViewPoint(Eyes,Facing);
+    auto* Audio=NewObject<UAudioComponent>(this);Audio->bIsUISound=true;Audio->bAutoDestroy=true;
+    Audio->SetSound(GS->Sounds[0]);Audio->AttenuationSettings=GS->Attenuation;
+    Audio->SetWorldLocation(Eyes+FRotationMatrix(Facing).GetUnitAxis(EAxis::Y)*(Right?160.f:-160.f));
+    Audio->SetVolumeMultiplier(.65f*Options->MasterVolume*Options->EffectsVolume);Audio->RegisterComponent();Audio->Play();
+}
 void ASpychoPlayerController::SetupInputComponent()
 {
     Super::SetupInputComponent();
     InputComponent->BindAction("Debug",IE_Pressed,this,&ASpychoPlayerController::ToggleDebug);
     InputComponent->BindAction("Restart",IE_Pressed,this,&ASpychoPlayerController::Restart);
     InputComponent->BindKey(EKeys::Enter,IE_Pressed,this,&ASpychoPlayerController::Rematch);
+    InputComponent->BindKey(EKeys::Escape,IE_Pressed,this,&ASpychoPlayerController::ToggleMenu).bExecuteWhenPaused=true;
 }
 void ASpychoPlayerController::ToggleDebug() { bDebug=!bDebug; }
 void ASpychoPlayerController::Restart() { ServerRestart(); }
@@ -25,10 +94,10 @@ void ASpychoPlayerController::ServerRestart_Implementation()
     // Local/listen host alone controls the developer reset.
     if (IsLocalController()) if (auto* GM=GetWorld()->GetAuthGameMode<ASpychoGameMode>()) GM->StartMatch();
 }
-void ASpychoPlayerController::Host() { UGameplayStatics::OpenLevel(this,TEXT("/Game/Maps/House"),true,TEXT("listen")); }
+void ASpychoPlayerController::Host() { CloseMenu();UGameplayStatics::OpenLevel(this,TEXT("/Game/Maps/House"),true,TEXT("listen")); }
 void ASpychoPlayerController::Join(const FString& Address)
 {
-    if (!Address.IsEmpty() && Address.Len()<128 && !Address.Contains(TEXT("?"))) ClientTravel(Address,TRAVEL_Absolute);
+    if (!Address.IsEmpty() && Address.Len()<128 && !Address.Contains(TEXT("?"))&&!Address.Contains(TEXT(" "))&&!Address.Contains(TEXT("/"))) { CloseMenu();ClientTravel(Address,TRAVEL_Absolute); }
 }
 void ASpychoPlayerController::ClientSmokePrepare_Implementation(int32 Round)
 {
