@@ -64,12 +64,12 @@ private:
     FVector LastStepPosition;
     bool bDeathHandled = false;
     void UpdateWeaponPresentation(float DeltaSeconds);
+    void AnchorFirstPersonGrip();
     void SprintDown(); void SprintUp();
     int32 BodyAnimation = -1;
     int32 FootstepCount = 0;
     float GunKick = 0.f;
     float GunRise = 0.f;
-    float SlideKick = 0.f;
     float CameraRecovery = 0.f;
     float AimAlpha = 0.f;
     float WalkPhase = 0.f;

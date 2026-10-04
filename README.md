@@ -54,3 +54,7 @@ All map/material/audio/art assets are checked in. Editor Python is only for asse
 ### Hallway reference visual pass
 
 The house now uses the supplied dim old-house hallway image as its visual target: pale grey/olive plaster, dark varnished wood, frosted wall sconces, substantial stepped trim, raised-panel doors, dark framed landscape paintings and a cool sash window at the far end. Lumen GI/reflections and TSR are enabled. No gameplay geometry was moved; cosmetic details do not block movement or shots. Run Tools/style_reference_house.py through Unreal Python after the base build; Tools/run.py assets includes this step. The painting source is checked in. Human visual/performance checks on other hardware remain.
+
+## Pistol grip correction
+
+The first-person and opponent pistols attach to HandGrip_R with a calibrated palm offset at native mesh scale. First-person anchoring runs after bone evaluation, and recoil moves the whole arm/weapon assembly. The additive fire clip is not played as a full pose; the gripping idle pose stays stable while the camera and rig recoil. Reload hands remain animated, with static weapon parts. Adjusted hip/ADS positions account for the corrected scale. `-SpychoCaptureFire` provides a rendered recoil capture.

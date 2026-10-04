@@ -22,6 +22,7 @@
 #include "Camera/CameraActor.h"
 #include "Engine/DirectionalLight.h"
 #include "Components/DirectionalLightComponent.h"
+#include "Components/StaticMeshComponent.h"
 
 ASpychoGameMode::ASpychoGameMode()
 {
@@ -53,12 +54,18 @@ void ASpychoGameMode::CapturePrototype()
     bool LoungeCapture=FParse::Param(FCommandLine::Get(),TEXT("SpychoCaptureLounge"));
     bool DoorCapture=FParse::Param(FCommandLine::Get(),TEXT("SpychoCaptureDoor"));
     bool ReloadCapture=FParse::Param(FCommandLine::Get(),TEXT("SpychoCaptureReload"));
+    bool FireCapture=FParse::Param(FCommandLine::Get(),TEXT("SpychoCaptureFire"));
     PC->GetPawn()->SetActorLocation(LoungeCapture?FVector(-420,-100,90):(BotCapture?FVector(350,130,90):FVector(-220,0,90)));
     PC->SetControlRotation(FRotator(0,LoungeCapture?112.f:(BotCapture?90.f:0.f),0));
     if (DoorCapture) { PC->GetPawn()->SetActorLocation(FVector(-440,0,90));PC->SetControlRotation(FRotator::ZeroRotator); }
     if (ReloadCapture)
     {
         auto* C=Cast<ASpychoCharacter>(PC->GetPawn());C->Handgun->Magazine=3;C->ServerReload();
+    }
+    if (FireCapture)
+    {
+        FTimerHandle Shot;GetWorldTimerManager().SetTimer(Shot,FTimerDelegate::CreateLambda([PC]()
+        { auto* C=Cast<ASpychoCharacter>(PC->GetPawn());C->ServerFire(PC->GetControlRotation(),0); }),.94f,false);
     }
     if (BotCapture) for (TActorIterator<ASpychoCharacter> It(GetWorld());It;++It) if (It->bTestOpponent)
     {
@@ -79,10 +86,10 @@ void ASpychoGameMode::CapturePrototype()
     }
     FString Directory=FPaths::ProjectSavedDir()/TEXT("Screenshots"); IFileManager::Get().MakeDirectory(*Directory,true);
     FTimerHandle T;
-    GetWorldTimerManager().SetTimer(T,FTimerDelegate::CreateLambda([this,Directory,AimCapture,PlanCapture,BotCapture,LoungeCapture,DoorCapture,ReloadCapture]()
+    GetWorldTimerManager().SetTimer(T,FTimerDelegate::CreateLambda([this,Directory,AimCapture,PlanCapture,BotCapture,LoungeCapture,DoorCapture,ReloadCapture,FireCapture]()
     {
         const TCHAR* Name=ReloadCapture?TEXT("SpychoReload.png"):(DoorCapture?TEXT("SpychoDoor.png"):(PlanCapture?TEXT("SpychoPlan.png"):(BotCapture?TEXT("SpychoBot.png"):(LoungeCapture?TEXT("SpychoLounge.png"):(AimCapture?TEXT("SpychoAim.png"):TEXT("Spycho.png"))))));
-        FScreenshotRequest::RequestScreenshot(Directory/Name,false,false);
+        FScreenshotRequest::RequestScreenshot(Directory/(FireCapture?TEXT("SpychoFire.png"):Name),false,false);
         FTimerHandle Exit; GetWorldTimerManager().SetTimer(Exit,FTimerDelegate::CreateLambda([](){FPlatformMisc::RequestExitWithStatus(false,0);}),2.f,false);
     }),1.f,false);
 }
@@ -210,7 +217,10 @@ void ASpychoGameMode::SmokeBeginAmmo()
     auto* PC=GetWorld()->GetFirstPlayerController(); auto* Shooter=PC?Cast<ASpychoCharacter>(PC->GetPawn()):nullptr;
     if (!Shooter) { FPlatformMisc::RequestExitWithStatus(false,1); return; }
     bool Mouse=FRotator::NormalizeAxis(PC->GetControlRotation().Pitch)>0.f && PC->GetControlRotation().Yaw>0.f;
-    bool Sights=Shooter->GetAimAlpha()>.98f && Shooter->WeaponRig->GetRelativeLocation().Equals(FVector(32,0,-9.7f),.2f);
+    FTransform GunTransform=Shooter->Gun->GetComponentTransform();
+    FVector Sight=Shooter->Camera->GetComponentTransform().InverseTransformPosition(GunTransform.TransformPosition(FVector(0,-3,12.6f)));
+    float Alignment=FVector::DotProduct(GunTransform.TransformVectorNoScale(FVector::YAxisVector),Shooter->Camera->GetForwardVector());
+    bool Sights=Shooter->GetAimAlpha()>.98f && Alignment>.995f && FMath::Abs(Sight.Y)<1.f && FMath::Abs(Sight.Z)<1.f && Sight.X>25.f && Sight.X<65.f;
     UE_LOG(LogTemp,Display,TEXT("SPYCHO_SMOKE %s raw MouseY up/MouseX right (pitch %.2f yaw %.2f)"),Mouse?TEXT("PASS"):TEXT("FAIL"),PC->GetControlRotation().Pitch,PC->GetControlRotation().Yaw);
     UE_LOG(LogTemp,Display,TEXT("SPYCHO_SMOKE %s smooth aligned aiming alpha %.3f"),Sights?TEXT("PASS"):TEXT("FAIL"),Shooter->GetAimAlpha());
     bSmokeMovementPassed &= Mouse&&Sights;

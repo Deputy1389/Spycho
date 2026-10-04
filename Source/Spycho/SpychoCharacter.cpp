@@ -46,18 +46,23 @@ ASpychoCharacter::ASpychoCharacter()
     WeaponRig=CreateDefaultSubobject<USceneComponent>(TEXT("WeaponRig")); WeaponRig->SetupAttachment(Camera);
     WeaponRig->SetRelativeLocation(FVector(30,11,-23));
     ConstructorHelpers::FObjectFinder<UStaticMesh> Pistol(TEXT("/Game/Weapons/Pistol/Meshes/SM_Pistol"));
-    Gun=CreateDefaultSubobject<UStaticMeshComponent>(TEXT("HandgunView"));Gun->SetupAttachment(WeaponRig);
-    Gun->SetStaticMesh(Pistol.Object);Gun->SetRelativeRotation(FRotator(0,-90,0));Gun->SetRelativeScale3D(FVector(.8f));
+    Gun=CreateDefaultSubobject<UStaticMeshComponent>(TEXT("HandgunView"));
+    Gun->SetStaticMesh(Pistol.Object);
     Gun->SetOnlyOwnerSee(true);Gun->SetCastShadow(false);Gun->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     FirstPersonArms=CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FirstPersonHands"));FirstPersonArms->SetupAttachment(WeaponRig);
     FirstPersonArms->SetSkeletalMesh(Manny.Object);FirstPersonArms->SetRelativeRotation(FRotator(0,-90,0));
     FirstPersonArms->SetOnlyOwnerSee(true);FirstPersonArms->SetCastShadow(false);FirstPersonArms->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     FirstPersonArms->SetAnimationMode(EAnimationMode::AnimationSingleNode);
-    WorldGun=CreateDefaultSubobject<UStaticMeshComponent>(TEXT("HeldPistol"));WorldGun->SetupAttachment(GetMesh(),TEXT("hand_r"));
-    WorldGun->SetStaticMesh(Pistol.Object);WorldGun->SetRelativeScale3D(FVector(.8f));WorldGun->SetOwnerNoSee(true);
+    // +Y is the barrel axis. Use the hand socket's orientation, then move this
+    // compact pistol back from the generic weapon socket into the palm.
+    Gun->SetupAttachment(FirstPersonArms,TEXT("HandGrip_R"));
+    Gun->SetRelativeLocation(FVector(0,-5,-1));
+    WorldGun=CreateDefaultSubobject<UStaticMeshComponent>(TEXT("HeldPistol"));WorldGun->SetupAttachment(GetMesh(),TEXT("HandGrip_R"));
+    WorldGun->SetStaticMesh(Pistol.Object);WorldGun->SetOwnerNoSee(true);
+    WorldGun->SetRelativeLocation(FVector(0,-5,-1));
     WorldGun->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    MuzzleLight=CreateDefaultSubobject<UPointLightComponent>(TEXT("MuzzleFlash")); MuzzleLight->SetupAttachment(WeaponRig);
-    MuzzleLight->SetRelativeLocation(FVector(16,0,7)); MuzzleLight->SetIntensity(2200.f); MuzzleLight->SetAttenuationRadius(170.f);
+    MuzzleLight=CreateDefaultSubobject<UPointLightComponent>(TEXT("MuzzleFlash")); MuzzleLight->SetupAttachment(Gun);
+    MuzzleLight->SetRelativeLocation(FVector(0,20,9)); MuzzleLight->SetIntensity(2200.f); MuzzleLight->SetAttenuationRadius(170.f);
     MuzzleLight->SetLightColor(FLinearColor(1,.55f,.2f)); MuzzleLight->SetCastShadows(false); MuzzleLight->SetVisibility(false);
 }
 void ASpychoCharacter::BeginPlay()
@@ -65,6 +70,19 @@ void ASpychoCharacter::BeginPlay()
     Super::BeginPlay();LastStepPosition=GetActorLocation();
     FirstPersonArms->PlayAnimation(IdleAnimation,true);FirstPersonArms->HideBoneByName(TEXT("head"),EPhysBodyOp::PBO_None);
     FirstPersonArms->HideBoneByName(TEXT("thigh_l"),EPhysBodyOp::PBO_None);FirstPersonArms->HideBoneByName(TEXT("thigh_r"),EPhysBodyOp::PBO_None);
+    FirstPersonArms->TickAnimation(0.f,false);FirstPersonArms->RefreshBoneTransforms();
+    FTransform Grip=FirstPersonArms->GetSocketTransform(TEXT("HandGrip_R"),RTS_Component);
+    FTransform Alignment=Grip.Inverse()*FTransform(FRotator(0,-90,0));
+    FirstPersonArms->SetRelativeRotation(Alignment.GetRotation());
+    FirstPersonArms->RegisterOnBoneTransformsFinalizedDelegate(FOnBoneTransformsFinalizedMultiCast::FDelegate::CreateUObject(this,&ASpychoCharacter::AnchorFirstPersonGrip));
+    AnchorFirstPersonGrip();
+}
+void ASpychoCharacter::AnchorFirstPersonGrip()
+{
+    // Run after animation evaluation so the gun and fingers use the same pose.
+    // Translate the whole arm assembly; never move the pistol out of its socket.
+    FVector Grip=FirstPersonArms->GetSocketTransform(TEXT("HandGrip_R"),RTS_Component).GetLocation();
+    FirstPersonArms->SetRelativeLocation(-FirstPersonArms->GetRelativeRotation().RotateVector(Grip));
 }
 void ASpychoCharacter::SetupPlayerInputComponent(UInputComponent* Input)
 {
@@ -197,7 +215,7 @@ void ASpychoCharacter::UpdateWeaponPresentation(float Dt)
     bWasReloading=Reloading;
     auto Blend=[Dt](float Speed){return 1.f-FMath::Exp(-Speed*Dt);};
     AimAlpha=FMath::Lerp(AimAlpha,bAiming&&!Reloading?1.f:0.f,Blend(14.f));
-    GunKick*=FMath::Exp(-17.f*Dt); GunRise*=FMath::Exp(-14.f*Dt); SlideKick*=FMath::Exp(-45.f*Dt);
+    GunKick*=FMath::Exp(-17.f*Dt); GunRise*=FMath::Exp(-14.f*Dt);
     if (IsLocallyControlled() && Controller && CameraRecovery>0.001f)
     {
         float Remaining=CameraRecovery*FMath::Exp(-9.f*Dt); FRotator R=Controller->GetControlRotation();
@@ -215,25 +233,24 @@ void ASpychoCharacter::UpdateWeaponPresentation(float Dt)
     WallLowering=FMath::Lerp(WallLowering,Blocked?FMath::Clamp((70.f-Wall.Distance)/45.f,0.f,1.f):0.f,Blend(18.f));
     FRotator Aim=GetControlRotation();float YawDelta=FMath::FindDeltaAngleDegrees(PreviousAim.Yaw,Aim.Yaw);PreviousAim=Aim;
     TurnSway=FMath::Lerp(TurnSway,FMath::Clamp(YawDelta,-3.f,3.f),Blend(10.f));
-    FVector Pos=FMath::Lerp(FVector(30,11,-23),FVector(32,0,-9.7f),AimAlpha);
-    Pos=FMath::Lerp(Pos,FVector(34,8,-12),ReloadTilt);
+    FVector Pos=FMath::Lerp(FVector(42,12,-21),FVector(46,0,-11.6f),AimAlpha);
+    Pos=FMath::Lerp(Pos,FVector(44,10,-16),ReloadTilt);
     Pos+=FVector(-GunKick-WallLowering*22.f,.22f*FMath::Sin(WalkPhase)*Bob-TurnSway*.18f*(1.f-AimAlpha),.18f*FMath::Cos(WalkPhase*2)*Bob-WallLowering*10.f);
     WeaponRig->SetRelativeLocation(Pos);
     WeaponRig->SetRelativeRotation(FRotator((1.f-AimAlpha)*-3.f+GunRise+ReloadTilt*6.f-WallLowering*18.f,(1.f-AimAlpha)*-4.f-ReloadTilt*8.f,ReloadTilt*15.f-TurnSway*(1.f-AimAlpha)));
-    Gun->SetRelativeLocation(FVector(-SlideKick*.3f,0,0));
-    int32 ArmState=Reloading?2:(Now<ArmShotUntil?1:0);
+    // MM_Pistol_Fire is a mesh-space additive, not a complete hand pose.
+    // Keep the gripping base pose and recoil the entire assembly together.
+    int32 ArmState=Reloading?2:0;
     if (ArmState!=ArmAnimation)
     {
-        ArmAnimation=ArmState;auto* Anim=ArmState==2?ReloadAnimation.Get():(ArmState==1?FireAnimation.Get():IdleAnimation.Get());
+        ArmAnimation=ArmState;auto* Anim=ArmState==2?ReloadAnimation.Get():IdleAnimation.Get();
         FirstPersonArms->PlayAnimation(Anim,ArmState==0);
         FirstPersonArms->SetPlayRate(ArmState==2?Anim->GetPlayLength()/Handgun->ReloadSeconds:1.f);
     }
-    FVector Hand=FirstPersonArms->GetBoneLocation(TEXT("hand_r"),EBoneSpaces::ComponentSpace);
-    FirstPersonArms->SetRelativeLocation(FVector(0,0,-2)-FRotator(0,-90,0).RotateVector(Hand));
     if (Health->Health>0.f)
     {
         int32 State=Reloading?4:(Now<ArmShotUntil?3:(Speed<15.f?0:(Speed>280.f?2:1)));
-        if (State!=BodyAnimation) { BodyAnimation=State;GetMesh()->PlayAnimation(State==4?ReloadAnimation:(State==3?FireAnimation:(State==0?IdleAnimation:(State==1?WalkAnimation:RunAnimation))),State<3); }
+        if (State!=BodyAnimation) { BodyAnimation=State;GetMesh()->PlayAnimation(State==4?ReloadAnimation:(State==3||State==0?IdleAnimation:(State==1?WalkAnimation:RunAnimation)),State!=4); }
         GetMesh()->SetPlayRate(State==4?ReloadAnimation->GetPlayLength()/Handgun->ReloadSeconds:(State==3||State==0?1.f:FMath::Clamp(Speed/(State==2?420.f:180.f),.4f,1.5f)));
     }
     Camera->FieldOfView=FMath::Lerp(80.f,65.f,AimAlpha);
@@ -243,7 +260,7 @@ void ASpychoCharacter::ShotFeedback()
 {
     ++ShotFeedbackCount;
     ArmShotUntil=GetWorld()->GetTimeSeconds()+.18f;ArmAnimation=-1;BodyAnimation=-1;
-    GunKick=1.6f; GunRise=FMath::Lerp(4.f,2.5f,AimAlpha); SlideKick=1.4f; FlashUntil=GetWorld()->GetTimeSeconds()+.035f;
+    GunKick=1.6f; GunRise=FMath::Lerp(4.f,2.5f,AimAlpha); FlashUntil=GetWorld()->GetTimeSeconds()+.035f;
     if (IsLocallyControlled() && Controller)
     {
         float Impulse=FMath::Lerp(1.1f,.65f,AimAlpha); FRotator R=Controller->GetControlRotation();
